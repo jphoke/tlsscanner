@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TLS Scanner Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+        }
+        
+        .scan-form {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .results {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .grade {
+            display: inline-block;
+            width: 60px;
+            height: 60px;
+            line-height: 60px;
+            text-align: center;
+            border-radius: 50%;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            margin-right: 20px;
+        }
+        
+        .grade-A { background: #27ae60; }
+        .grade-B { background: #3498db; }
+        .grade-C { background: #f39c12; }
+        .grade-D { background: #e67e22; }
+        .grade-F { background: #e74c3c; }
+        .grade-NA { background: #95a5a6; }
+        
+        .section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .protocol-list, .vuln-list {
+            list-style: none;
+            margin-top: 10px;
+        }
+        
+        .protocol-list li, .vuln-list li {
+            padding: 5px 0;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .status-scanning {
+            background: #3498db;
+            color: white;
+        }
+        
+        .status-completed {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .status-failed {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>TLS Scanner Portal</h1>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="scan-form">
+            <h2>Scan a Target</h2>
+            <form id="scanForm">
+                <div class="form-group">
+                    <label for="target">Target (hostname or IP:port)</label>
+                    <input type="text" id="target" name="target" placeholder="example.com or example.com:8443" required>
+                </div>
+                <button type="submit" id="scanButton">Start Scan</button>
+            </form>
+        </div>
+        
+        <div id="results" class="results">
+            <!-- Results will be displayed here -->
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/v1';
+        let currentScanId = null;
+        let ws = null;
+        
+        document.getElementById('scanForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const target = document.getElementById('target').value;
+            const button = document.getElementById('scanButton');
+            const results = document.getElementById('results');
+            
+            button.disabled = true;
+            button.textContent = 'Scanning...';
+            
+            try {
+                // Submit scan
+                const response = await fetch(`${API_BASE}/scans`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to start scan');
+                }
+                
+                const data = await response.json();
+                currentScanId = data.id;
+                
+                // Show loading state
+                results.style.display = 'block';
+                results.innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Scanning ${target}...</p>
+                    </div>
+                `;
+                
+                // Start polling for results
+                pollResults(currentScanId);
+                
+            } catch (error) {
+                results.style.display = 'block';
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                button.disabled = false;
+                button.textContent = 'Start Scan';
+            }
+        });
+        
+        async function pollResults(scanId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/scans/${scanId}`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'completed') {
+                        clearInterval(interval);
+                        displayResults(data);
+                        document.getElementById('scanButton').disabled = false;
+                        document.getElementById('scanButton').textContent = 'Start Scan';
+                    } else if (data.status === 'failed') {
+                        clearInterval(interval);
+                        document.getElementById('results').innerHTML = `
+                            <div class="error">Scan failed: ${data.error || 'Unknown error'}</div>
+                        `;
+                        document.getElementById('scanButton').disabled = false;
+                        document.getElementById('scanButton').textContent = 'Start Scan';
+                    }
+                } catch (error) {
+                    clearInterval(interval);
+                    document.getElementById('results').innerHTML = `
+                        <div class="error">Error fetching results: ${error.message}</div>
+                    `;
+                    document.getElementById('scanButton').disabled = false;
+                    document.getElementById('scanButton').textContent = 'Start Scan';
+                }
+            }, 1000);
+        }
+        
+        function displayResults(data) {
+            const result = data.result;
+            const gradeClass = data.grade === 'N/A' ? 'grade-NA' : `grade-${data.grade.charAt(0)}`;
+            
+            let html = `
+                <h2>Scan Results</h2>
+                <div style="display: flex; align-items: center; margin: 20px 0;">
+                    <div class="grade ${gradeClass}">${data.grade}</div>
+                    <div>
+                        <h3>${result.target}</h3>
+                        ${data.grade === 'N/A' 
+                            ? '<p>Certificate has critical issues</p>' 
+                            : `<p>Score: ${data.score}/100</p>`}
+                    </div>
+                </div>
+                
+                <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                    <h4>Detailed Grades:</h4>
+                    <p>🔐 Protocol/Cipher: <strong>${result.protocol_grade}</strong> (${result.protocol_score}/100)</p>
+                    <p>📜 Certificate: <strong>${result.certificate_grade}</strong> (${result.certificate_score}/100)</p>
+                </div>
+            `;
+            
+            // Certificate info
+            if (result.certificate) {
+                const cert = result.certificate;
+                const validClass = cert.is_valid ? 'status-completed' : 'status-failed';
+                html += `
+                    <div class="section">
+                        <h3>Certificate</h3>
+                        <p><strong>Subject:</strong> ${cert.subject}</p>
+                        <p><strong>Issuer:</strong> ${cert.issuer}</p>
+                        <p><strong>Valid:</strong> ${new Date(cert.not_before).toLocaleDateString()} - ${new Date(cert.not_after).toLocaleDateString()}</p>
+                        <p><span class="status ${validClass}">${cert.is_valid ? 'Valid' : 'Invalid'}</span></p>
+                    </div>
+                `;
+            }
+            
+            // Protocols
+            html += `
+                <div class="section">
+                    <h3>Supported Protocols</h3>
+                    <ul class="protocol-list">
+            `;
+            
+            result.supported_protocols.forEach(proto => {
+                if (proto.enabled) {
+                    const icon = proto.version >= 0x0303 ? '✅' : '⚠️';
+                    html += `<li>${icon} ${proto.name}</li>`;
+                }
+            });
+            
+            html += '</ul></div>';
+            
+            // Vulnerabilities
+            if (result.vulnerabilities && result.vulnerabilities.length > 0) {
+                html += `
+                    <div class="section">
+                        <h3>Vulnerabilities</h3>
+                        <ul class="vuln-list">
+                `;
+                
+                result.vulnerabilities.forEach(vuln => {
+                    const icon = vuln.severity === 'HIGH' ? '🔴' : '🟡';
+                    html += `<li>${icon} ${vuln.name} (${vuln.severity})</li>`;
+                });
+                
+                html += '</ul></div>';
+            }
+            
+            document.getElementById('results').innerHTML = html;
+        }
+    </script>
+</body>
+</html>

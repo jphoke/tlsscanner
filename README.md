@@ -103,9 +103,95 @@ The web UI provides a comprehensive view of your SSL/TLS security posture:
 ## Development
 
 ### Prerequisites
-- Go 1.23+
-- PostgreSQL 15+
-- Redis 7+
+
+**Note**: If you're using Docker (recommended), you don't need to install these locally! Docker handles everything for you. Skip to the Quick Start section above.
+
+For local development without Docker, you'll need:
+- Go 1.23 or newer (programming language) - [Installation guide below](#installing-go)
+- PostgreSQL 15+ (database)
+- Redis 7+ (caching/queue)
+
+### Installing Go
+
+**What is Go?** Go (also called Golang) is the programming language this scanner is built with. You need it installed to build the scanner from source.
+
+#### Step-by-Step Go Installation:
+
+1. **Check if Go is already installed:**
+   ```bash
+   go version
+   ```
+   If you see something like `go version go1.23.0 darwin/amd64`, you're good! Skip to [Building from source](#building-from-source).
+
+2. **Download Go:**
+   - Visit https://go.dev/dl/
+   - Find your operating system (Windows, macOS, or Linux)
+   - Click the download link for your system
+   
+   **Not sure which to download?**
+   - Windows: Download the `.msi` file
+   - macOS: Download the `.pkg` file  
+   - Linux: Download the `.tar.gz` file
+
+3. **Install Go:**
+   
+   **Windows:**
+   - Double-click the downloaded `.msi` file
+   - Click "Next" through the installer (default settings are fine)
+   - Go will be installed to `C:\Program Files\Go`
+   
+   **macOS:**
+   - Double-click the downloaded `.pkg` file
+   - Follow the installer prompts
+   - Go will be installed to `/usr/local/go`
+   
+   **Linux:**
+   ```bash
+   # Remove any previous Go installation
+   sudo rm -rf /usr/local/go
+   
+   # Extract the archive (replace go1.23.0 with your version)
+   sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
+   
+   # Add Go to your PATH (add this to ~/.bashrc or ~/.zshrc)
+   export PATH=$PATH:/usr/local/go/bin
+   
+   # Reload your shell configuration
+   source ~/.bashrc  # or source ~/.zshrc
+   ```
+
+4. **Verify Go is installed:**
+   ```bash
+   go version
+   ```
+   You should see the Go version printed. If not, see [Troubleshooting](#go-installation-troubleshooting).
+
+5. **Set up Go workspace (optional but recommended):**
+   ```bash
+   # Create a directory for your Go projects
+   mkdir -p ~/go/src
+   ```
+
+#### Go Installation Troubleshooting
+
+**"go: command not found" error:**
+- **Windows**: Restart your command prompt or PowerShell
+- **macOS/Linux**: Make sure Go is in your PATH:
+  ```bash
+  echo $PATH | grep -q "/usr/local/go/bin" || echo "Go not in PATH!"
+  ```
+  If not in PATH, add to your shell config file (~/.bashrc, ~/.zshrc, etc.):
+  ```bash
+  export PATH=$PATH:/usr/local/go/bin
+  ```
+
+**"Permission denied" errors:**
+- Use `sudo` for installation commands on macOS/Linux
+- On Windows, run installer as Administrator
+
+**Still having issues?**
+- Try the official Go troubleshooting guide: https://go.dev/doc/install
+- Or just use Docker instead (see Quick Start section) - no Go installation needed!
 
 ### Building from source:
 ```bash

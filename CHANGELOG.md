@@ -4,6 +4,8 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-07-26
+
 ### Added - 2025-07-26 Morning Session
 - **Comments Field**: Added 100-character comments field to scans for tracking change tickets, test purposes, etc.
   - Database schema updated with comments VARCHAR(100)
@@ -33,9 +35,7 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 - Scanner now fails fast on connection errors
 - Better error messages for connection and TLS handshake failures
 
-## [0.1.0] - 2025-07-26
-
-### Added
+### Added - Initial Release Features
 - Core TLS scanner with <1s scan times
 - SSL Labs grading methodology with grade capping
 - Professional web UI with security visualization

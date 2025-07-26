@@ -78,11 +78,11 @@
 - [ ] Custom branding options
 
 ### API Enhancements
+- [x] OpenAPI/Swagger docs (completed 2025-07-26)
 - [ ] JWT authentication
 - [ ] API key management
 - [ ] Rate limiting per IP/key
 - [ ] Usage analytics
-- [ ] OpenAPI/Swagger docs
 
 ## 🔧 Low Priority - Advanced Features
 

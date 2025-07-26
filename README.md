@@ -5,7 +5,11 @@ A fast, modern web portal for comprehensive TLS/SSL security testing. Built with
 ## Features
 
 - **Lightning Fast**: Native Go implementation is 10-100x faster than shell-based solutions
-- **SSL Labs Grading**: Industry-standard scoring methodology with detailed breakdowns
+- **SSL Labs Grading**: Industry-standard scoring methodology with grade capping
+  - Automatic grade caps for weak protocols (TLS 1.0→C)
+  - Caps for weak ciphers (3DES→B, RC4→F)
+  - Cap for missing forward secrecy (→B)
+  - TLS 1.3 forward secrecy properly detected
 - **Comprehensive Testing**: 
   - Protocol version detection (TLS 1.0 - TLS 1.3)
   - Cipher suite enumeration with forward secrecy detection
@@ -19,7 +23,7 @@ A fast, modern web portal for comprehensive TLS/SSL security testing. Built with
   - Recent scans history with click-to-view
   - Unique scan ID tracking
 - **Real-time Updates**: WebSocket support for live scan progress
-- **RESTful API**: Full API for integration with CI/CD pipelines
+- **RESTful API**: Full API with Swagger documentation for integration
 - **Persistent Storage**: PostgreSQL for scan history and security analysis
 - **Queue Management**: Built-in job queue with Redis for scalability
 - **Docker Ready**: One-command deployment with docker-compose
@@ -39,12 +43,13 @@ cp .env.example .env
 
 3. Start with Docker Compose:
 ```bash
-docker-compose up -d
+docker compose up -d --build
 ```
 
 4. Access the portal:
 - Web UI: http://localhost:3000
 - API: http://localhost:8000/api/v1/health
+- API Documentation: http://localhost:8000/swagger/index.html
 
 ## Architecture
 
@@ -98,7 +103,7 @@ The web UI provides a comprehensive view of your SSL/TLS security posture:
 ## Development
 
 ### Prerequisites
-- Go 1.21+
+- Go 1.23+
 - PostgreSQL 15+
 - Redis 7+
 
@@ -125,7 +130,10 @@ tlsscanner-portal/
 ├── web/
 │   └── static/       # Web UI files
 ├── scripts/
-│   └── schema.sql    # Database schema
+│   ├── schema.sql    # Database schema
+│   ├── cleanup-db.sh # Host cleanup script
+│   └── docker-db-cleanup.sh # Docker cleanup script
+├── docs/             # Swagger API documentation
 └── docker-compose.yml
 ```
 
@@ -157,7 +165,7 @@ make cleanup-90
 make cleanup-all
 
 # Or run directly:
-./scripts/cleanup-db.sh [7|30|90|ALL]
+./scripts/docker-db-cleanup.sh [7|30|90|ALL]
 ```
 
 The cleanup script:

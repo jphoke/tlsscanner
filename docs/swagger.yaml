@@ -1,0 +1,163 @@
+basePath: /api/v1
+definitions:
+  main.ScanRequest:
+    properties:
+      priority:
+        type: integer
+      target:
+        type: string
+    required:
+    - target
+    type: object
+  main.ScanResponse:
+    properties:
+      created:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      queue_position:
+        type: integer
+      status:
+        type: string
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: High-performance TLS/SSL security scanner API with SSL Labs grading
+  title: TLS Scanner Portal API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if the API and its dependencies are healthy
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - health
+  /scans:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all scans with their status and grades
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List all scans
+      tags:
+      - scans
+    post:
+      consumes:
+      - application/json
+      description: Submit a target hostname or IP address for TLS/SSL scanning
+      parameters:
+      - description: Scan target
+        in: body
+        name: scan
+        required: true
+        schema:
+          $ref: '#/definitions/main.ScanRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/main.ScanResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Submit a new scan
+      tags:
+      - scans
+  /scans/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the result of a specific scan by its ID
+      parameters:
+      - description: Scan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get scan result
+      tags:
+      - scans
+  /stats:
+    get:
+      consumes:
+      - application/json
+      description: Get scan statistics including total scans, queue length, etc.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get statistics
+      tags:
+      - stats
+schemes:
+- http
+- https
+swagger: "2.0"

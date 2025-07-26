@@ -1,3 +1,9 @@
+// @title TLS Scanner Portal API
+// @version 1.0.0
+// @description High-performance TLS/SSL security scanner API with SSL Labs grading
+// @host localhost:8000
+// @BasePath /api/v1
+// @schemes http https
 package main
 
 import (
@@ -13,6 +19,10 @@ import (
 	"github.com/jphoke/tlsscanner-portal/pkg/scanner"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	_ "github.com/jphoke/tlsscanner-portal/docs" // swagger docs
 )
 
 type Server struct {
@@ -94,6 +104,9 @@ func main() {
 		c.Next()
 	})
 	
+	// Swagger documentation
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// Routes
 	api := r.Group("/api/v1")
 	{
@@ -117,6 +130,17 @@ func main() {
 	r.Run(":" + port)
 }
 
+// createScan godoc
+// @Summary Submit a new scan
+// @Description Submit a target hostname or IP address for TLS/SSL scanning
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Param scan body ScanRequest true "Scan target"
+// @Success 202 {object} ScanResponse
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /scans [post]
 func (s *Server) createScan(c *gin.Context) {
 	var req ScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -165,6 +189,17 @@ func (s *Server) createScan(c *gin.Context) {
 	})
 }
 
+// getScan godoc
+// @Summary Get scan result
+// @Description Retrieve the result of a specific scan by its ID
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Param id path string true "Scan ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /scans/{id} [get]
 func (s *Server) getScan(c *gin.Context) {
 	scanID := c.Param("id")
 	
@@ -370,6 +405,15 @@ func (s *Server) getScan(c *gin.Context) {
 	c.JSON(200, response)
 }
 
+// listScans godoc
+// @Summary List all scans
+// @Description Get a list of all scans with their status and grades
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]string
+// @Router /scans [get]
 func (s *Server) listScans(c *gin.Context) {
 	limit := 50
 	offset := 0
@@ -461,6 +505,14 @@ func (s *Server) streamScan(c *gin.Context) {
 	}
 }
 
+// getStats godoc
+// @Summary Get statistics
+// @Description Get scan statistics including total scans, queue length, etc.
+// @Tags stats
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /stats [get]
 func (s *Server) getStats(c *gin.Context) {
 	var stats struct {
 		TotalScans     int
@@ -488,6 +540,15 @@ func (s *Server) getStats(c *gin.Context) {
 	c.JSON(200, stats)
 }
 
+// healthCheck godoc
+// @Summary Health check
+// @Description Check if the API and its dependencies are healthy
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Failure 503 {object} map[string]string
+// @Router /health [get]
 func (s *Server) healthCheck(c *gin.Context) {
 	// Check database
 	if err := s.db.Ping(); err != nil {

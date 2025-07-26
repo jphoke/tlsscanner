@@ -29,6 +29,33 @@ docker compose up -d --build
 ```
 
 That's it! The scanner is now ready to use.
+### Screenshots
+
+<div align="center">
+  <img width="1199" alt="Screenshot of main portal page" src="https://github.com/user-attachments/assets/81ed1d69-1b93-4af1-a638-ab4706754568" />
+  <p><em>Main portal interface - Simple and intuitive scanning</em></p>
+</div>
+
+  <br/>
+
+<div align="center">
+  <img width="1183" alt="Results for BADSSL.COM" src="https://github.com/user-attachments/assets/fead97a3-3089-4876-a632-446c8b210c90" />
+  <p><em>Grade B result showing security issues and remediation steps</em></p>
+</div>
+
+ <br/>
+
+<div align="center">
+ <img width="1198" alt="Results for www.hoke.org" src="https://github.com/user-attachments/assets/2628b769-5113-44e5-8ee3-5a0669f3ef5e" />
+ <p><em>Grade A+ result demonstrating strong security configuration</em></p>
+</div>
+
+  <br/>
+
+<div align="center">
+  <img width="1447" alt="Screenshot of Swagger API Documents" src="https://github.com/user-attachments/assets/55960b63-76a6-430d-81c5-311a35db0723" />
+  <p><em>Interactive API documentation with Swagger UI</em></p>
+</div>
 
 ### Standalone CLI
 

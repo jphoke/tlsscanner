@@ -1,7 +1,36 @@
 basePath: /api/v1
 definitions:
+  main.ScanListItem:
+    properties:
+      comments:
+        type: string
+      created:
+        type: string
+      grade:
+        type: string
+      id:
+        type: string
+      score:
+        type: integer
+      status:
+        type: string
+      target:
+        type: string
+    type: object
+  main.ScanListResponse:
+    properties:
+      scans:
+        items:
+          $ref: '#/definitions/main.ScanListItem'
+        type: array
+      total:
+        type: integer
+    type: object
   main.ScanRequest:
     properties:
+      comments:
+        maxLength: 100
+        type: string
       priority:
         type: integer
       target:
@@ -21,6 +50,69 @@ definitions:
         type: integer
       status:
         type: string
+    type: object
+  main.ScanResultResponse:
+    properties:
+      certificate_days_remaining:
+        type: integer
+      certificate_expires_at:
+        type: string
+      certificate_grade:
+        type: string
+      certificate_issuer:
+        type: string
+      certificate_key_size:
+        type: integer
+      certificate_key_type:
+        type: string
+      certificate_score:
+        type: integer
+      cipher_strength_score:
+        type: integer
+      comments:
+        type: string
+      connection_type:
+        type: string
+      grade:
+        type: string
+      grade_degradations:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      id:
+        type: string
+      key_exchange_score:
+        type: integer
+      protocol_grade:
+        type: string
+      protocol_score:
+        type: integer
+      protocol_support_score:
+        type: integer
+      result:
+        type: object
+      score:
+        type: integer
+      service_type:
+        type: string
+      status:
+        type: string
+      vulnerabilities:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      weak_ciphers:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      weak_protocols:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
     type: object
 host: localhost:8000
 info:
@@ -63,8 +155,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/main.ScanListResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -124,8 +215,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/main.ScanResultResponse'
         "404":
           description: Not Found
           schema:

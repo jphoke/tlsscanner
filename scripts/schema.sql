@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS scans (
     target VARCHAR(255) NOT NULL,
     ip VARCHAR(45),
     port VARCHAR(10) NOT NULL,
+    service_type VARCHAR(20),
+    connection_type VARCHAR(20),
     scan_time TIMESTAMP NOT NULL DEFAULT NOW(),
     duration_ms INTEGER,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -48,6 +50,8 @@ CREATE TABLE IF NOT EXISTS scans (
 CREATE INDEX idx_scans_target ON scans(target);
 CREATE INDEX idx_scans_created_at ON scans(created_at DESC);
 CREATE INDEX idx_scans_status ON scans(status);
+CREATE INDEX idx_scans_service_type ON scans(service_type);
+CREATE INDEX idx_scans_connection_type ON scans(connection_type);
 CREATE INDEX idx_scans_certificate_expires ON scans(certificate_expires_at);
 CREATE INDEX idx_scans_grade ON scans(grade);
 

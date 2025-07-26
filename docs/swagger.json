@@ -65,8 +65,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/main.ScanListResponse"
                         }
                     },
                     "500": {
@@ -157,8 +156,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/main.ScanResultResponse"
                         }
                     },
                     "404": {
@@ -208,12 +206,56 @@
         }
     },
     "definitions": {
+        "main.ScanListItem": {
+            "type": "object",
+            "properties": {
+                "comments": {
+                    "type": "string"
+                },
+                "created": {
+                    "type": "string"
+                },
+                "grade": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.ScanListResponse": {
+            "type": "object",
+            "properties": {
+                "scans": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.ScanListItem"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "main.ScanRequest": {
             "type": "object",
             "required": [
                 "target"
             ],
             "properties": {
+                "comments": {
+                    "type": "string",
+                    "maxLength": 100
+                },
                 "priority": {
                     "type": "integer"
                 },
@@ -239,6 +281,99 @@
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "main.ScanResultResponse": {
+            "type": "object",
+            "properties": {
+                "certificate_days_remaining": {
+                    "type": "integer"
+                },
+                "certificate_expires_at": {
+                    "type": "string"
+                },
+                "certificate_grade": {
+                    "type": "string"
+                },
+                "certificate_issuer": {
+                    "type": "string"
+                },
+                "certificate_key_size": {
+                    "type": "integer"
+                },
+                "certificate_key_type": {
+                    "type": "string"
+                },
+                "certificate_score": {
+                    "type": "integer"
+                },
+                "cipher_strength_score": {
+                    "type": "integer"
+                },
+                "comments": {
+                    "type": "string"
+                },
+                "connection_type": {
+                    "type": "string"
+                },
+                "grade": {
+                    "type": "string"
+                },
+                "grade_degradations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "key_exchange_score": {
+                    "type": "integer"
+                },
+                "protocol_grade": {
+                    "type": "string"
+                },
+                "protocol_score": {
+                    "type": "integer"
+                },
+                "protocol_support_score": {
+                    "type": "integer"
+                },
+                "result": {
+                    "type": "object"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "service_type": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "vulnerabilities": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "weak_ciphers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "weak_protocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
                 }
             }
         }

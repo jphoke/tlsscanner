@@ -7,19 +7,19 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
 build: ## Build all Docker images
-	docker-compose build
+	docker compose build
 
 up: ## Start all services (Web UI: http://localhost:3000, API: http://localhost:8000)
-	docker-compose up -d
+	docker compose up -d
 
 down: ## Stop all services
-	docker-compose down
+	docker compose down
 
 logs: ## View logs
-	docker-compose logs -f
+	docker compose logs -f
 
 clean: ## Stop services and remove volumes
-	docker-compose down -v
+	docker compose down -v
 
 test: ## Run tests
 	go test ./...
@@ -31,16 +31,16 @@ scan: scanner-build ## Run a test scan
 	./scanner -target $(target)
 
 db-shell: ## Connect to PostgreSQL
-	docker-compose exec postgres psql -U postgres tlsscanner
+	docker compose exec postgres psql -U postgres tlsscanner
 
 redis-cli: ## Connect to Redis
-	docker-compose exec redis redis-cli
+	docker compose exec redis redis-cli
 
 api-logs: ## View API logs
-	docker-compose logs -f api
+	docker compose logs -f api
 
 restart: ## Restart all services
-	docker-compose restart
+	docker compose restart
 
 cleanup-7: ## Clean up scans older than 7 days
 	@docker compose exec -T postgres psql -U postgres -d tlsscanner -c "DELETE FROM scan_queue WHERE created_at < NOW() - INTERVAL '7 days';"

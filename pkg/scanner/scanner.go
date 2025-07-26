@@ -23,6 +23,8 @@ type Result struct {
 	Target             string              `json:"target"`
 	IP                 string              `json:"ip"`
 	Port               string              `json:"port"`
+	ServiceType        string              `json:"service_type"`       // "https", "smtp", "imap", etc.
+	ConnectionType     string              `json:"connection_type"`    // "direct-tls" or "starttls"
 	ScanTime           time.Time           `json:"scan_time"`
 	Duration           time.Duration       `json:"duration"`
 	SupportedProtocols []ProtocolInfo      `json:"supported_protocols"`
@@ -122,6 +124,20 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 		return nil, fmt.Errorf("invalid target: %w", err)
 	}
 	result.Port = port
+	
+	// Auto-detect service type based on port
+	serviceInfo := DetectServiceType(port)
+	if s.config.Verbose {
+		fmt.Printf("Detected service: %s on port %s (Protocol: %v)\n", serviceInfo.Name, port, serviceInfo.Protocol)
+	}
+	
+	// Record what we detected
+	result.ServiceType = strings.ToLower(serviceInfo.Name)
+	if serviceInfo.Protocol == ProtocolSTARTTLS {
+		result.ConnectionType = "starttls"
+	} else {
+		result.ConnectionType = "direct-tls"
+	}
 
 	// Resolve IP
 	ips, err := net.LookupIP(host)
@@ -148,16 +164,32 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 	testConn.Close()
 
 	// Now test if TLS is available
-	tlsConn, err := tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), &tls.Config{
+	var tlsConn *tls.Conn
+	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
-	})
-	if err != nil {
-		// TCP works but TLS doesn't - still - grade
-		result.Errors = append(result.Errors, fmt.Sprintf("TLS handshake failed: %v", err))
-		result.Grade = "-"
-		result.Score = 0
-		result.Duration = time.Since(start)
-		return result, nil
+	}
+	
+	if serviceInfo.Protocol == ProtocolSTARTTLS {
+		// Use STARTTLS negotiation
+		tlsConn, err = DialWithStartTLS(host, port, serviceInfo.STARTTLSType, tlsConfig, s.config.Timeout)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("STARTTLS negotiation failed: %v", err))
+			result.Grade = "-"
+			result.Score = 0
+			result.Duration = time.Since(start)
+			return result, nil
+		}
+	} else {
+		// Direct TLS connection
+		tlsConn, err = tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), tlsConfig)
+		if err != nil {
+			// TCP works but TLS doesn't - still - grade
+			result.Errors = append(result.Errors, fmt.Sprintf("TLS handshake failed: %v", err))
+			result.Grade = "-"
+			result.Score = 0
+			result.Duration = time.Since(start)
+			return result, nil
+		}
 	}
 	tlsConn.Close()
 
@@ -181,18 +213,18 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 			Version: proto.version,
 		}
 		
-		if s.testProtocol(host, port, proto.version) {
+		if s.testProtocol(host, port, proto.version, serviceInfo) {
 			info.Enabled = true
 			result.SupportedProtocols = append(result.SupportedProtocols, info)
 			
 			// Get ciphers for this protocol
-			ciphers := s.getCiphersForProtocol(host, port, proto.version, proto.name)
+			ciphers := s.getCiphersForProtocol(host, port, proto.version, proto.name, serviceInfo)
 			result.CipherSuites = append(result.CipherSuites, ciphers...)
 		}
 	}
 
 	// Get certificate info
-	certInfo, err := s.getCertificateInfo(host, port)
+	certInfo, err := s.getCertificateInfo(host, port, serviceInfo)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Certificate error: %v", err))
 	} else {
@@ -209,17 +241,27 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 	return result, nil
 }
 
-func (s *Scanner) testProtocol(host, port string, version uint16) bool {
-	dialer := &net.Dialer{
-		Timeout: s.config.Timeout,
-	}
-	
-	target := net.JoinHostPort(host, port)
-	conn, err := tls.DialWithDialer(dialer, "tcp", target, &tls.Config{
+func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo ServiceInfo) bool {
+	tlsConfig := &tls.Config{
 		MinVersion:         version,
 		MaxVersion:         version,
 		InsecureSkipVerify: true,
-	})
+	}
+	
+	var conn *tls.Conn
+	var err error
+	
+	if serviceInfo.Protocol == ProtocolSTARTTLS {
+		// Use STARTTLS negotiation
+		conn, err = DialWithStartTLS(host, port, serviceInfo.STARTTLSType, tlsConfig, s.config.Timeout)
+	} else {
+		// Direct TLS connection
+		dialer := &net.Dialer{
+			Timeout: s.config.Timeout,
+		}
+		target := net.JoinHostPort(host, port)
+		conn, err = tls.DialWithDialer(dialer, "tcp", target, tlsConfig)
+	}
 	
 	if err != nil {
 		return false
@@ -229,7 +271,7 @@ func (s *Scanner) testProtocol(host, port string, version uint16) bool {
 	return true
 }
 
-func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, protoName string) []CipherInfo {
+func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, protoName string, serviceInfo ServiceInfo) []CipherInfo {
 	var ciphers []CipherInfo
 	
 	// Get appropriate cipher suites for the protocol version
@@ -258,16 +300,26 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 	target := net.JoinHostPort(host, port)
 	
 	for _, cipherID := range testCiphers {
-		dialer := &net.Dialer{
-			Timeout: s.config.Timeout,
-		}
-		
-		conn, err := tls.DialWithDialer(dialer, "tcp", target, &tls.Config{
+		tlsConfig := &tls.Config{
 			MinVersion:         version,
 			MaxVersion:         version,
 			CipherSuites:       []uint16{cipherID},
 			InsecureSkipVerify: true,
-		})
+		}
+		
+		var conn *tls.Conn
+		var err error
+		
+		if serviceInfo.Protocol == ProtocolSTARTTLS {
+			// Use STARTTLS negotiation
+			conn, err = DialWithStartTLS(host, port, serviceInfo.STARTTLSType, tlsConfig, s.config.Timeout)
+		} else {
+			// Direct TLS connection
+			dialer := &net.Dialer{
+				Timeout: s.config.Timeout,
+			}
+			conn, err = tls.DialWithDialer(dialer, "tcp", target, tlsConfig)
+		}
 		
 		if err == nil {
 			defer conn.Close()
@@ -289,15 +341,25 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 	return ciphers
 }
 
-func (s *Scanner) getCertificateInfo(host, port string) (*CertificateInfo, error) {
-	dialer := &net.Dialer{
-		Timeout: s.config.Timeout,
+func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo) (*CertificateInfo, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
 	}
 	
-	target := net.JoinHostPort(host, port)
-	conn, err := tls.DialWithDialer(dialer, "tcp", target, &tls.Config{
-		InsecureSkipVerify: true,
-	})
+	var conn *tls.Conn
+	var err error
+	
+	if serviceInfo.Protocol == ProtocolSTARTTLS {
+		// Use STARTTLS negotiation
+		conn, err = DialWithStartTLS(host, port, serviceInfo.STARTTLSType, tlsConfig, s.config.Timeout)
+	} else {
+		// Direct TLS connection
+		dialer := &net.Dialer{
+			Timeout: s.config.Timeout,
+		}
+		target := net.JoinHostPort(host, port)
+		conn, err = tls.DialWithDialer(dialer, "tcp", target, tlsConfig)
+	}
 	
 	if err != nil {
 		return nil, err

@@ -45,6 +45,15 @@
 - [x] Weak protocols and cipher suites display
 - [x] Real-time updates via WebSocket
 
+### STARTTLS Support (as of 2025-07-26)
+- [x] Automatic protocol detection based on port
+- [x] SMTP STARTTLS support (ports 25, 587)
+- [x] IMAP STARTTLS support (port 143)
+- [x] POP3 STARTTLS support (port 110)
+- [x] Auto-detect STARTTLS vs direct TLS connections
+- [x] Record service type and connection type in database
+- [x] Tested against Gmail SMTP/IMAP servers
+
 ## 🚀 High Priority - Next Features
 
 ### Comments Field for Scans
@@ -56,18 +65,18 @@
   - [x] Web UI: Display comments in scan results and recent scans
   - [x] Use cases: Change tickets, test purposes, analyst notes
 
-### STARTTLS Support
-- [ ] Implement STARTTLS protocol negotiation
-  - [ ] SMTP (ports 25, 587) - EHLO → STARTTLS
-  - [ ] IMAP (port 143) - . CAPABILITY → . STARTTLS
-  - [ ] POP3 (port 110) - CAPA → STLS
-  - [ ] PostgreSQL (port 5432) - SSLRequest packet
-  - [ ] MySQL (port 3306) - SSL capability flag
-  - [ ] LDAP (port 389) - StartTLS extended operation
-- [ ] Add protocol detection to scanner
-- [ ] Update CLI to accept --starttls flag
-- [ ] Update API to accept starttls parameter
-- [ ] Test against known STARTTLS servers
+### Custom Port Mapping
+- [ ] Allow admin to configure custom port mappings file
+- [ ] Support for non-standard ports (e.g., 8006→HTTPS for Proxmox)
+- [ ] JSON/YAML configuration file for custom mappings
+- [ ] Check custom mappings before well-known ports
+
+### Additional STARTTLS Protocols
+- [ ] PostgreSQL (port 5432) - SSLRequest packet
+- [ ] MySQL (port 3306) - SSL capability flag
+- [ ] LDAP (port 389) - StartTLS extended operation
+- [ ] XMPP/Jabber (port 5222)
+- [ ] FTP with AUTH TLS (port 21)
 
 ### Deployment & Operations
 - [ ] Production environment configuration

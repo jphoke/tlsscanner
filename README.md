@@ -16,6 +16,7 @@ A fast, modern web portal for comprehensive TLS/SSL security testing. Built with
   - Certificate validation with expiration tracking
   - Vulnerability detection (weak protocols, cipher issues)
   - Grade degradation analysis with remediation guidance
+  - **NEW: Automatic STARTTLS support** for mail servers (SMTP, IMAP, POP3)
 - **Professional Web UI**:
   - Visual SSL Labs score breakdown
   - Certificate expiration warnings (critical/warning levels)
@@ -75,6 +76,19 @@ curl -X POST http://localhost:8000/api/v1/scans \
   -d '{"target": "example.com"}'
 ```
 
+### Scan mail servers (automatic STARTTLS):
+```bash
+# SMTP with STARTTLS
+curl -X POST http://localhost:8000/api/v1/scans \
+  -H "Content-Type: application/json" \
+  -d '{"target": "mail.example.com:587"}'
+
+# IMAP with STARTTLS
+curl -X POST http://localhost:8000/api/v1/scans \
+  -H "Content-Type: application/json" \
+  -d '{"target": "mail.example.com:143"}'
+```
+
 ### Get scan results:
 ```bash
 curl http://localhost:8000/api/v1/scans/{scan-id}
@@ -84,6 +98,22 @@ curl http://localhost:8000/api/v1/scans/{scan-id}
 ```bash
 curl http://localhost:8000/api/v1/scans
 ```
+
+## STARTTLS Support
+
+The scanner automatically detects and handles STARTTLS for mail servers based on port:
+
+| Port | Service | Protocol Type |
+|------|---------|---------------|
+| 25   | SMTP | STARTTLS |
+| 587  | SMTP Submission | STARTTLS |
+| 465  | SMTPS | Direct TLS |
+| 143  | IMAP | STARTTLS |
+| 993  | IMAPS | Direct TLS |
+| 110  | POP3 | STARTTLS |
+| 995  | POP3S | Direct TLS |
+
+No configuration needed - just provide the target with port and the scanner handles the rest!
 
 ## Performance Comparison
 

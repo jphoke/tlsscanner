@@ -45,6 +45,48 @@ type ScanResponse struct {
 	Created  time.Time `json:"created"`
 }
 
+type ScanResultResponse struct {
+	ID                      string                 `json:"id"`
+	Status                  string                 `json:"status"`
+	ServiceType             string                 `json:"service_type,omitempty"`
+	ConnectionType          string                 `json:"connection_type,omitempty"`
+	Grade                   string                 `json:"grade,omitempty"`
+	Score                   int                    `json:"score,omitempty"`
+	ProtocolSupportScore    int                    `json:"protocol_support_score,omitempty"`
+	KeyExchangeScore        int                    `json:"key_exchange_score,omitempty"`
+	CipherStrengthScore     int                    `json:"cipher_strength_score,omitempty"`
+	ProtocolGrade           string                 `json:"protocol_grade,omitempty"`
+	ProtocolScore           int                    `json:"protocol_score,omitempty"`
+	CertificateGrade        string                 `json:"certificate_grade,omitempty"`
+	CertificateScore        int                    `json:"certificate_score,omitempty"`
+	CertificateExpiresAt    *time.Time             `json:"certificate_expires_at,omitempty"`
+	CertificateDaysRemaining int                   `json:"certificate_days_remaining,omitempty"`
+	CertificateIssuer       string                 `json:"certificate_issuer,omitempty"`
+	CertificateKeyType      string                 `json:"certificate_key_type,omitempty"`
+	CertificateKeySize      int                    `json:"certificate_key_size,omitempty"`
+	Comments                string                 `json:"comments,omitempty"`
+	Result                  interface{}            `json:"result,omitempty" swaggertype:"object"`
+	Vulnerabilities         []map[string]interface{} `json:"vulnerabilities"`
+	GradeDegradations       []map[string]interface{} `json:"grade_degradations"`
+	WeakProtocols           []map[string]interface{} `json:"weak_protocols"`
+	WeakCiphers             []map[string]interface{} `json:"weak_ciphers"`
+}
+
+type ScanListItem struct {
+	ID         string     `json:"id"`
+	Target     string     `json:"target"`
+	Status     string     `json:"status"`
+	Grade      string     `json:"grade,omitempty"`
+	Score      int        `json:"score,omitempty"`
+	Comments   string     `json:"comments,omitempty"`
+	Created    time.Time  `json:"created"`
+}
+
+type ScanListResponse struct {
+	Scans []ScanListItem `json:"scans"`
+	Total int            `json:"total"`
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		// In production, implement proper origin checking
@@ -197,7 +239,7 @@ func (s *Server) createScan(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path string true "Scan ID"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} ScanResultResponse
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /scans/{id} [get]
@@ -206,6 +248,7 @@ func (s *Server) getScan(c *gin.Context) {
 	
 	var result json.RawMessage
 	var status string
+	var serviceType, connectionType sql.NullString
 	var grade, protocolGrade, certificateGrade sql.NullString
 	var score, protocolScore, certificateScore sql.NullInt64
 	var protocolSupportScore, keyExchangeScore, cipherStrengthScore sql.NullInt64
@@ -216,7 +259,7 @@ func (s *Server) getScan(c *gin.Context) {
 	var comments sql.NullString
 	
 	err := s.db.QueryRow(`
-		SELECT status, grade, score, 
+		SELECT status, service_type, connection_type, grade, score, 
 		       protocol_support_score, key_exchange_score, cipher_strength_score,
 		       protocol_grade, protocol_score, 
 		       certificate_grade, certificate_score,
@@ -225,7 +268,7 @@ func (s *Server) getScan(c *gin.Context) {
 		       comments, result
 		FROM scans
 		WHERE id = $1
-	`, scanID).Scan(&status, &grade, &score, 
+	`, scanID).Scan(&status, &serviceType, &connectionType, &grade, &score, 
 		&protocolSupportScore, &keyExchangeScore, &cipherStrengthScore,
 		&protocolGrade, &protocolScore,
 		&certificateGrade, &certificateScore,
@@ -245,6 +288,14 @@ func (s *Server) getScan(c *gin.Context) {
 	response := gin.H{
 		"id":     scanID,
 		"status": status,
+	}
+	
+	if serviceType.Valid {
+		response["service_type"] = serviceType.String
+	}
+	
+	if connectionType.Valid {
+		response["connection_type"] = connectionType.String
 	}
 	
 	if grade.Valid {
@@ -417,7 +468,7 @@ func (s *Server) getScan(c *gin.Context) {
 // @Tags scans
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} ScanListResponse
 // @Failure 500 {object} map[string]string
 // @Router /scans [get]
 func (s *Server) listScans(c *gin.Context) {
@@ -490,27 +541,24 @@ func (s *Server) streamScan(c *gin.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	
-	for {
-		select {
-		case <-ticker.C:
-			var status string
-			err := s.db.QueryRow("SELECT status FROM scans WHERE id = $1", scanID).Scan(&status)
-			if err != nil {
-				return
-			}
-			
-			update := gin.H{
-				"id":     scanID,
-				"status": status,
-			}
-			
-			if err := conn.WriteJSON(update); err != nil {
-				return
-			}
-			
-			if status == "completed" || status == "failed" {
-				return
-			}
+	for range ticker.C {
+		var status string
+		err := s.db.QueryRow("SELECT status FROM scans WHERE id = $1", scanID).Scan(&status)
+		if err != nil {
+			return
+		}
+		
+		update := gin.H{
+			"id":     scanID,
+			"status": status,
+		}
+		
+		if err := conn.WriteJSON(update); err != nil {
+			return
+		}
+		
+		if status == "completed" || status == "failed" {
+			return
 		}
 	}
 }
@@ -650,26 +698,29 @@ func (s *Server) worker(id int) {
 			s.db.Exec(`
 				UPDATE scans 
 				SET status = 'completed', 
-				    grade = $2, 
-				    score = $3,
-				    protocol_support_score = $4,
-				    key_exchange_score = $5,
-				    cipher_strength_score = $6,
-				    protocol_grade = $7,
-				    protocol_score = $8,
-				    certificate_grade = $9,
-				    certificate_score = $10,
-				    result = $11,
-				    duration_ms = $12,
-				    ip = $13,
-				    certificate_expires_at = $14,
-				    certificate_days_remaining = $15,
-				    certificate_issuer = $16,
-				    certificate_key_type = $17,
-				    certificate_key_size = $18,
+				    service_type = $2,
+				    connection_type = $3,
+				    grade = $4, 
+				    score = $5,
+				    protocol_support_score = $6,
+				    key_exchange_score = $7,
+				    cipher_strength_score = $8,
+				    protocol_grade = $9,
+				    protocol_score = $10,
+				    certificate_grade = $11,
+				    certificate_score = $12,
+				    result = $13,
+				    duration_ms = $14,
+				    ip = $15,
+				    certificate_expires_at = $16,
+				    certificate_days_remaining = $17,
+				    certificate_issuer = $18,
+				    certificate_key_type = $19,
+				    certificate_key_size = $20,
 				    updated_at = NOW()
 				WHERE id = $1
-			`, scanID, result.Grade, result.Score, 
+			`, scanID, result.ServiceType, result.ConnectionType,
+			   result.Grade, result.Score, 
 			   result.ProtocolSupportScore, result.KeyExchangeScore, result.CipherStrengthScore,
 			   result.ProtocolGrade, result.ProtocolScore,
 			   result.CertificateGrade, result.CertificateScore,

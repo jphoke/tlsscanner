@@ -34,6 +34,7 @@ type Server struct {
 type ScanRequest struct {
 	Target   string `json:"target" binding:"required"`
 	Priority int    `json:"priority"`
+	Comments string `json:"comments" binding:"omitempty,max=100"`
 }
 
 type ScanResponse struct {
@@ -151,10 +152,10 @@ func (s *Server) createScan(c *gin.Context) {
 	// Create scan record
 	var scanID string
 	err := s.db.QueryRow(`
-		INSERT INTO scans (target, port, status)
-		VALUES ($1, $2, 'queued')
+		INSERT INTO scans (target, port, status, comments)
+		VALUES ($1, $2, 'queued', $3)
 		RETURNING id
-	`, req.Target, "443").Scan(&scanID)
+	`, req.Target, "443", req.Comments).Scan(&scanID)
 	
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to create scan"})
@@ -212,6 +213,7 @@ func (s *Server) getScan(c *gin.Context) {
 	var certDaysRemaining sql.NullInt64
 	var certIssuer, certKeyType sql.NullString
 	var certKeySize sql.NullInt64
+	var comments sql.NullString
 	
 	err := s.db.QueryRow(`
 		SELECT status, grade, score, 
@@ -220,7 +222,7 @@ func (s *Server) getScan(c *gin.Context) {
 		       certificate_grade, certificate_score,
 		       certificate_expires_at, certificate_days_remaining,
 		       certificate_issuer, certificate_key_type, certificate_key_size,
-		       result
+		       comments, result
 		FROM scans
 		WHERE id = $1
 	`, scanID).Scan(&status, &grade, &score, 
@@ -228,7 +230,7 @@ func (s *Server) getScan(c *gin.Context) {
 		&protocolGrade, &protocolScore,
 		&certificateGrade, &certificateScore,
 		&certExpiresAt, &certDaysRemaining,
-		&certIssuer, &certKeyType, &certKeySize, &result)
+		&certIssuer, &certKeyType, &certKeySize, &comments, &result)
 	
 	if err == sql.ErrNoRows {
 		c.JSON(404, gin.H{"error": "Scan not found"})
@@ -296,6 +298,10 @@ func (s *Server) getScan(c *gin.Context) {
 	}
 	if certKeySize.Valid {
 		response["certificate_key_size"] = certKeySize.Int64
+	}
+	
+	if comments.Valid && comments.String != "" {
+		response["comments"] = comments.String
 	}
 	
 	if result != nil {
@@ -419,7 +425,7 @@ func (s *Server) listScans(c *gin.Context) {
 	offset := 0
 	
 	rows, err := s.db.Query(`
-		SELECT id, target, status, grade, score, created_at
+		SELECT id, target, status, grade, score, comments, created_at
 		FROM scans
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -436,9 +442,10 @@ func (s *Server) listScans(c *gin.Context) {
 		var id, target, status string
 		var grade sql.NullString
 		var score sql.NullInt64
+		var comments sql.NullString
 		var created time.Time
 		
-		err := rows.Scan(&id, &target, &status, &grade, &score, &created)
+		err := rows.Scan(&id, &target, &status, &grade, &score, &comments, &created)
 		if err != nil {
 			continue
 		}
@@ -455,6 +462,9 @@ func (s *Server) listScans(c *gin.Context) {
 		}
 		if score.Valid {
 			scan["score"] = score.Int64
+		}
+		if comments.Valid && comments.String != "" {
+			scan["comments"] = comments.String
 		}
 		
 		scans = append(scans, scan)

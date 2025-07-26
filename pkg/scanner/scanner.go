@@ -132,6 +132,35 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 		result.IP = ips[0].String()
 	}
 
+	// First, test if we can connect at all
+	dialer := &net.Dialer{
+		Timeout: s.config.Timeout,
+	}
+	testConn, err := dialer.Dial("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		// Connection failed - return - grade
+		result.Errors = append(result.Errors, fmt.Sprintf("Connection failed: %v", err))
+		result.Grade = "-"
+		result.Score = 0
+		result.Duration = time.Since(start)
+		return result, nil
+	}
+	testConn.Close()
+
+	// Now test if TLS is available
+	tlsConn, err := tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), &tls.Config{
+		InsecureSkipVerify: true,
+	})
+	if err != nil {
+		// TCP works but TLS doesn't - still - grade
+		result.Errors = append(result.Errors, fmt.Sprintf("TLS handshake failed: %v", err))
+		result.Grade = "-"
+		result.Score = 0
+		result.Duration = time.Since(start)
+		return result, nil
+	}
+	tlsConn.Close()
+
 	// Test protocols
 	// Note: Go's crypto/tls doesn't support SSL v2, and SSL v3 support was removed in Go 1.14+
 	// This means we cannot detect if a server supports these ancient protocols
@@ -457,8 +486,14 @@ func calculateSSLLabsScore(result *Result) {
 	
 	// Check for automatic failures (SSL Labs rules)
 	if hasCertificateFailure(result) {
-		result.Grade = "F"
-		result.Score = 0
+		// Check specifically for hostname mismatch
+		if hasHostnameMismatch(result) {
+			result.Grade = "M"
+			// Keep the calculated score instead of zeroing it
+		} else {
+			result.Grade = "F"
+			result.Score = 0
+		}
 		identifyCertificateDegradations(result)
 		return
 	}
@@ -710,10 +745,9 @@ func hasCertificateFailure(result *Result) bool {
 		return true
 	}
 	
-	// Check for specific failures
+	// Check for specific failures (excluding hostname mismatch)
 	for _, err := range result.Certificate.ValidationErrors {
 		if strings.Contains(err, "expired") ||
-		   strings.Contains(err, "Hostname verification failed") ||
 		   strings.Contains(err, "self-signed") {
 			return true
 		}
@@ -723,6 +757,20 @@ func hasCertificateFailure(result *Result) bool {
 	if strings.Contains(result.Certificate.SignatureAlgorithm, "MD5") ||
 	   strings.Contains(result.Certificate.SignatureAlgorithm, "SHA1") {
 		return true
+	}
+	
+	return false
+}
+
+func hasHostnameMismatch(result *Result) bool {
+	if result.Certificate == nil {
+		return false
+	}
+	
+	for _, err := range result.Certificate.ValidationErrors {
+		if strings.Contains(err, "Hostname verification failed") {
+			return true
+		}
 	}
 	
 	return false
@@ -1014,7 +1062,7 @@ func identifyCertificateDegradations(result *Result) {
 				Category:    "certificate",
 				Issue:       "Hostname mismatch",
 				Details:     err,
-				Impact:      "Automatic F grade",
+				Impact:      "Grade: M (Mismatch)",
 				Remediation: "Use a certificate with the correct hostname or SAN entries.",
 			})
 		}

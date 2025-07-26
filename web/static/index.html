@@ -108,6 +108,9 @@
         .grade-D { background: #e67e22; }
         .grade-E { background: #d35400; }
         .grade-F { background: #e74c3c; }
+        .grade-M { background: #7f8c8d; }
+        .grade-ERROR { background: #34495e; }
+        .grade-\\- { background: #34495e; }
         .grade-NA { background: #95a5a6; }
         
         .section {
@@ -155,6 +158,23 @@
             padding: 15px;
             border-radius: 4px;
             margin-top: 20px;
+        }
+        
+        .error-box {
+            background: #e74c3c;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 16px;
+            line-height: 1.5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .error-box strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 18px;
         }
         
         .loading {
@@ -377,6 +397,10 @@
                     <label for="target">Target (hostname or IP:port)</label>
                     <input type="text" id="target" name="target" placeholder="example.com or example.com:8443" required>
                 </div>
+                <div class="form-group">
+                    <label for="comments">Comments (optional, max 100 chars)</label>
+                    <input type="text" id="comments" name="comments" placeholder="Change ticket #, test purpose, etc." maxlength="100">
+                </div>
                 <button type="submit" id="scanButton">Start Scan</button>
             </form>
         </div>
@@ -405,6 +429,7 @@
             e.preventDefault();
             
             const target = document.getElementById('target').value;
+            const comments = document.getElementById('comments').value;
             const button = document.getElementById('scanButton');
             const results = document.getElementById('results');
             
@@ -416,7 +441,7 @@
                 const response = await fetch(`${API_BASE}/scans`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target })
+                    body: JSON.stringify({ target, comments })
                 });
                 
                 if (!response.ok) {
@@ -480,7 +505,7 @@
         
         function displayResults(data) {
             const result = data.result || {};
-            const gradeClass = data.grade === 'N/A' ? 'grade-NA' : `grade-${data.grade.replace('+', '\\+')}`;
+            const gradeClass = data.grade === 'N/A' ? 'grade-NA' : `grade-${data.grade.replace('+', '\\+').replace('-', '\\-')}`;
             
             let html = `
                 <h2>Scan Results</h2>
@@ -492,9 +517,27 @@
                             ? '<p>Certificate has critical issues</p>' 
                             : `<p>Overall Score: ${data.score}/100</p>`}
                         <p style="font-size: 12px; color: #7f8c8d;">Scan ID: ${data.id || 'Unknown'}</p>
+                        ${data.comments ? `<p style="font-size: 13px; color: #34495e; font-style: italic;">Comments: ${data.comments}</p>` : ''}
                     </div>
                 </div>
             `;
+            
+            // Show connection error if grade is "-"
+            if (data.grade === '-') {
+                const target = result.target || data.target || 'the target';
+                html += `
+                    <div class="error-box">
+                        <strong>⚠️ ERROR: Connection Failed</strong>
+                        Could not connect to ${target}. Please ensure:
+                        <ul style="margin: 10px 0 0 20px;">
+                            <li>The service is running and listening on the specified port</li>
+                            <li>No firewall is blocking the connection</li>
+                            <li>The hostname/IP address is correct</li>
+                            <li>The port number is correct</li>
+                        </ul>
+                    </div>
+                `;
+            }
             
             // SSL Labs Score Breakdown
             if (data.protocol_support_score !== undefined) {
@@ -734,7 +777,7 @@
             
             let html = '';
             scans.forEach(scan => {
-                const gradeClass = scan.grade === 'N/A' ? 'grade-NA' : `grade-${scan.grade ? scan.grade.replace('+', '\\+') : 'NA'}`;
+                const gradeClass = scan.grade === 'N/A' ? 'grade-NA' : `grade-${scan.grade ? scan.grade.replace('+', '\\+').replace('-', '\\-') : 'NA'}`;
                 const date = new Date(scan.created).toLocaleString();
                 
                 html += `
@@ -742,6 +785,8 @@
                         <div>
                             <div class="scan-target">${scan.target}</div>
                             <div class="scan-date">${date}</div>
+                            <div class="scan-id" style="font-size: 12px; color: #95a5a6;">ID: ${scan.id}</div>
+                            ${scan.comments ? `<div class="scan-comments" style="font-size: 12px; color: #7f8c8d; font-style: italic;">${scan.comments}</div>` : ''}
                         </div>
                         <div class="scan-meta">
                             ${scan.status === 'completed' 

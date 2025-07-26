@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS scans (
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     
     -- SSL Labs overall grade and score
-    grade VARCHAR(3),  -- A+, A, B, C, D, E, F
+    grade VARCHAR(10),  -- A+, A, B, C, D, E, F, M, ERROR
     score INTEGER,     -- 0-100
     
     -- SSL Labs category scores
@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS scans (
     certificate_issuer VARCHAR(255),
     certificate_key_type VARCHAR(20),
     certificate_key_size INTEGER,
+    
+    -- User comments for scan tracking
+    comments VARCHAR(100),
     
     result JSONB,
     error_message TEXT,

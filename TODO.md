@@ -45,7 +45,29 @@
 - [x] Weak protocols and cipher suites display
 - [x] Real-time updates via WebSocket
 
-## 🚀 High Priority - Production Ready
+## 🚀 High Priority - Next Features
+
+### Comments Field for Scans
+- [ ] Add comments field to scan records (0-100 chars)
+  - [ ] Database schema update: ALTER TABLE scans ADD COLUMN comments VARCHAR(100)
+  - [ ] API: Accept comments in POST /scans request
+  - [ ] API: Return comments in GET /scans responses
+  - [ ] Web UI: Add comments input field
+  - [ ] Web UI: Display comments in scan results and recent scans
+  - [ ] Use cases: Change tickets, test purposes, analyst notes
+
+### STARTTLS Support
+- [ ] Implement STARTTLS protocol negotiation
+  - [ ] SMTP (ports 25, 587) - EHLO → STARTTLS
+  - [ ] IMAP (port 143) - . CAPABILITY → . STARTTLS
+  - [ ] POP3 (port 110) - CAPA → STLS
+  - [ ] PostgreSQL (port 5432) - SSLRequest packet
+  - [ ] MySQL (port 3306) - SSL capability flag
+  - [ ] LDAP (port 389) - StartTLS extended operation
+- [ ] Add protocol detection to scanner
+- [ ] Update CLI to accept --starttls flag
+- [ ] Update API to accept starttls parameter
+- [ ] Test against known STARTTLS servers
 
 ### Deployment & Operations
 - [ ] Production environment configuration
@@ -86,14 +108,10 @@
 
 ## 🔧 Low Priority - Advanced Features
 
-### Protocol Support
-- [ ] **STARTTLS Support**
-  - [ ] SMTP (ports 25, 587)
-  - [ ] IMAP (port 143)
-  - [ ] POP3 (port 110)
-  - [ ] PostgreSQL (port 5432)
-  - [ ] MySQL (port 3306)
-  - [ ] LDAP (port 389)
+### Additional Protocol Support
+- [ ] **XMPP/Jabber STARTTLS** (port 5222)
+- [ ] **FTP** with AUTH TLS (port 21)
+- [ ] **NNTP** with STARTTLS (port 119)
 
 ### Vulnerability Detection
 - [ ] Heartbleed

@@ -1,102 +1,53 @@
 # Changelog
 
-All notable changes to the TLS Scanner Portal project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in this file.
 
 ## [Unreleased]
 
+### Added - 2025-07-26 Morning Session
+- **Comments Field**: Added 100-character comments field to scans for tracking change tickets, test purposes, etc.
+  - Database schema updated with comments VARCHAR(100)
+  - API accepts and returns comments
+  - Web UI shows comment input field and displays comments in results/history
+  - Scan ID now visible in Recent Scans section
+
+- **M Grade for Hostname Mismatches**: More informative grading for certificate hostname mismatches
+  - Grade "M" instead of "F" for hostname/IP mismatches
+  - Preserves actual security score (e.g., M with 87/100)
+  - Clear indication of what needs fixing
+  - Gray background styling for M grade
+
+- **Connection Failure Handling**: Better UX for failed connections
+  - Grade "-" for connection failures (was "ERROR" which truncated)
+  - Dark gray background for "-" grade
+  - Clear error message box with troubleshooting steps
+  - Early connection detection prevents hanging
+
+### Fixed - 2025-07-26 Morning Session
+- Fixed database grade field size (was VARCHAR(3), now VARCHAR(10))
+- Fixed Docker networking issue with localhost/127.0.0.1 scans
+- Fixed UI grade display truncation for longer grades
+- Added proper CSS escaping for special grade characters
+
+### Changed - 2025-07-26 Morning Session
+- Scanner now fails fast on connection errors
+- Better error messages for connection and TLS handshake failures
+
+## [0.1.0] - 2025-07-26
+
 ### Added
-- Initial project setup with Go module structure
-- Core TLS scanner library with blazing fast performance (<1s scans)
-- Protocol detection for TLS 1.0 through TLS 1.3
-- Cipher suite enumeration with strength evaluation
-- Certificate validation and chain analysis
-- **SSL Labs grading methodology** (2025-07-25):
-  - Industry-standard scoring algorithm
-  - Three weighted categories: Protocol (30%), Key Exchange (30%), Cipher (40%)
-  - Automatic F grade for certificate issues
-  - Grade boundaries: A (80+), B (65-79), C (50-64), D (35-49), E (20-34), F (<20)
-- **Grade degradation tracking** (2025-07-25):
-  - Shows specific ciphers/protocols causing grade reduction
-  - Provides impact assessment and remediation steps
-  - Categories: protocol, key_exchange, cipher, certificate
-- Dual grading system for additional insight:
-  - Overall Grade: SSL Labs methodology
-  - Protocol/Cipher Grade: Detailed crypto strength
-  - Certificate Grade: Trust and validation details
-- CLI scanner tool with text and JSON output
-- REST API server using Gin framework
-- PostgreSQL database with SSL Labs scoring fields
+- Core TLS scanner with <1s scan times
+- SSL Labs grading methodology with grade capping
+- Professional web UI with security visualization
+- Database persistence with PostgreSQL
 - Redis job queue for async scanning
-- Worker pool for concurrent scan processing
-- WebSocket support for real-time scan updates
-- Basic web UI with visual grade display
-- Docker Compose setup for easy deployment
-- Support for non-standard ports (e.g., 8443)
-- IP address scanning with proper certificate handling
-
-### Changed
-- Overall grading now uses SSL Labs methodology instead of simple deduction
-- Database schema updated with SSL Labs scoring fields
-- Certificate scoring to avoid double-counting penalties
-- Improved cipher strength evaluation with SSL Labs scoring
-
-### Fixed
-- Compilation errors in scanner package
-- Unused variable warnings
-- Duplicate code sections in grading functions
+- Docker Compose deployment
+- Swagger API documentation
+- Database cleanup scripts
+- WebSocket support for real-time updates
 
 ### Security
-- Input validation on all API endpoints
-- Certificate validation includes hostname verification
-- Proper handling of self-signed certificates
-- Automatic F grade for weak signature algorithms (MD5, SHA1)
-
-### Known Issues
-- Cannot detect SSL v2/v3 due to Go crypto/tls limitations
-- Certificate key size calculation not yet implemented
-- No STARTTLS support yet
-- No vulnerability scanning (Heartbleed, POODLE, etc.) yet
-- Web UI needs update to show SSL Labs scores and degradations
-
-### API Updates (2025-07-25)
-- Worker saves all SSL Labs scoring fields to database
-- getScan endpoint returns all scoring fields
-- listScans includes SSL Labs category scores
-
-### Database Schema Updates (2025-07-26)
-- Added certificate detail columns (expiration, issuer, key type/size)
-- Created `scan_vulnerabilities` table for detected security issues
-- Created `scan_grade_degradations` table for specific grade impacts
-- Created `scan_weak_protocols` table for weak protocol tracking
-- Created `scan_weak_ciphers` table for problematic cipher suites
-- Added indexes for certificate expiration and grade queries
-
-### API Enhancements (2025-07-26)
-- Worker now saves all security issues to dedicated tables
-- Certificate expiration tracking with days remaining calculation
-- Vulnerability detection stored with severity levels
-- Grade degradations saved with remediation guidance
-- Weak protocols (TLS 1.0/1.1) tracked separately
-- Weak/non-PFS cipher suites recorded for analysis
-- getScan endpoint returns complete security assessment:
-  - Certificate details and expiration status
-  - All detected vulnerabilities
-  - Grade degradations with remediation steps
-  - Lists of weak protocols and ciphers
-
-### Web UI Enhancements (2025-07-26)
-- Complete redesign with professional dark header
-- SSL Labs score breakdown with visual progress bars
-- Security issues section with categorized remediation guidance
-- Certificate expiration warnings (expired/critical/warning)
-- Weak protocols and cipher suites display
-- Recent Scans section showing scan history
-- Click-to-view previous scan results
-- Unique scan ID display for tracking
-- Responsive design with smooth animations
-
-## [0.1.0] - TBD (First Release)
-- Initial release
+- Proper TLS 1.3 forward secrecy detection
+- Grade capping for weak protocols (TLS 1.0→C)
+- Grade capping for weak ciphers (3DES→B, RC4→F)
+- Automatic F grade for certificate issues

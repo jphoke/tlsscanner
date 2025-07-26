@@ -66,5 +66,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - getScan endpoint returns all scoring fields
 - listScans includes SSL Labs category scores
 
+### Database Schema Updates (2025-07-26)
+- Added certificate detail columns (expiration, issuer, key type/size)
+- Created `scan_vulnerabilities` table for detected security issues
+- Created `scan_grade_degradations` table for specific grade impacts
+- Created `scan_weak_protocols` table for weak protocol tracking
+- Created `scan_weak_ciphers` table for problematic cipher suites
+- Added indexes for certificate expiration and grade queries
+
+### API Enhancements (2025-07-26)
+- Worker now saves all security issues to dedicated tables
+- Certificate expiration tracking with days remaining calculation
+- Vulnerability detection stored with severity levels
+- Grade degradations saved with remediation guidance
+- Weak protocols (TLS 1.0/1.1) tracked separately
+- Weak/non-PFS cipher suites recorded for analysis
+- getScan endpoint returns complete security assessment:
+  - Certificate details and expiration status
+  - All detected vulnerabilities
+  - Grade degradations with remediation steps
+  - Lists of weak protocols and ciphers
+
+### Web UI Enhancements (2025-07-26)
+- Complete redesign with professional dark header
+- SSL Labs score breakdown with visual progress bars
+- Security issues section with categorized remediation guidance
+- Certificate expiration warnings (expired/critical/warning)
+- Weak protocols and cipher suites display
+- Recent Scans section showing scan history
+- Click-to-view previous scan results
+- Unique scan ID display for tracking
+- Responsive design with smooth animations
+
 ## [0.1.0] - TBD (First Release)
 - Initial release

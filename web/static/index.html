@@ -102,10 +102,11 @@
             margin-right: 20px;
         }
         
-        .grade-A { background: #27ae60; }
+        .grade-A, .grade-A\+ { background: #27ae60; }
         .grade-B { background: #3498db; }
         .grade-C { background: #f39c12; }
         .grade-D { background: #e67e22; }
+        .grade-E { background: #d35400; }
         .grade-F { background: #e74c3c; }
         .grade-NA { background: #95a5a6; }
         
@@ -175,6 +176,190 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        .score-bars {
+            margin: 20px 0;
+        }
+        
+        .score-bar {
+            margin: 10px 0;
+        }
+        
+        .score-bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .score-bar-track {
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .score-bar-fill {
+            height: 100%;
+            background: #3498db;
+            transition: width 0.5s ease;
+        }
+        
+        .score-bar-fill.high { background: #27ae60; }
+        .score-bar-fill.medium { background: #f39c12; }
+        .score-bar-fill.low { background: #e74c3c; }
+        
+        .security-issues {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .issue-category {
+            margin-bottom: 20px;
+        }
+        
+        .issue-category h4 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .issue-item {
+            background: white;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .issue-header {
+            font-weight: 600;
+            color: #721c24;
+            margin-bottom: 5px;
+        }
+        
+        .issue-details {
+            color: #856404;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        
+        .issue-impact {
+            color: #004085;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        
+        .issue-remediation {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #0c5460;
+        }
+        
+        .cert-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .cert-critical {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+        
+        .cert-expired {
+            background: #721c24;
+            border: 1px solid #491217;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+        
+        .weak-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .weak-item {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .recent-scans {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .scan-history-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .scan-history-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .scan-history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .scan-target {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .scan-meta {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .scan-date {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        
+        .mini-grade {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            border-radius: 50%;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -199,12 +384,22 @@
         <div id="results" class="results">
             <!-- Results will be displayed here -->
         </div>
+        
+        <div class="recent-scans">
+            <h2>Recent Scans</h2>
+            <div id="scanHistory">
+                <p style="color: #7f8c8d;">Loading recent scans...</p>
+            </div>
+        </div>
     </div>
     
     <script>
         const API_BASE = '/api/v1';
         let currentScanId = null;
         let ws = null;
+        
+        // Load recent scans on page load
+        loadRecentScans();
         
         document.getElementById('scanForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -262,6 +457,8 @@
                         displayResults(data);
                         document.getElementById('scanButton').disabled = false;
                         document.getElementById('scanButton').textContent = 'Start Scan';
+                        // Reload recent scans to show the new one
+                        loadRecentScans();
                     } else if (data.status === 'failed') {
                         clearInterval(interval);
                         document.getElementById('results').innerHTML = `
@@ -282,76 +479,305 @@
         }
         
         function displayResults(data) {
-            const result = data.result;
-            const gradeClass = data.grade === 'N/A' ? 'grade-NA' : `grade-${data.grade.charAt(0)}`;
+            const result = data.result || {};
+            const gradeClass = data.grade === 'N/A' ? 'grade-NA' : `grade-${data.grade.replace('+', '\\+')}`;
             
             let html = `
                 <h2>Scan Results</h2>
                 <div style="display: flex; align-items: center; margin: 20px 0;">
-                    <div class="grade ${gradeClass}">${data.grade}</div>
+                    <div class="grade ${gradeClass}">${data.grade || 'N/A'}</div>
                     <div>
-                        <h3>${result.target}</h3>
-                        ${data.grade === 'N/A' 
+                        <h3>${result.target || 'Unknown Target'}</h3>
+                        ${data.grade === 'N/A' || !data.score
                             ? '<p>Certificate has critical issues</p>' 
-                            : `<p>Score: ${data.score}/100</p>`}
+                            : `<p>Overall Score: ${data.score}/100</p>`}
+                        <p style="font-size: 12px; color: #7f8c8d;">Scan ID: ${data.id || 'Unknown'}</p>
                     </div>
-                </div>
-                
-                <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-                    <h4>Detailed Grades:</h4>
-                    <p>🔐 Protocol/Cipher: <strong>${result.protocol_grade}</strong> (${result.protocol_score}/100)</p>
-                    <p>📜 Certificate: <strong>${result.certificate_grade}</strong> (${result.certificate_score}/100)</p>
                 </div>
             `;
             
+            // SSL Labs Score Breakdown
+            if (data.protocol_support_score !== undefined) {
+                html += `
+                    <div class="score-bars">
+                        <h3>SSL Labs Score Breakdown</h3>
+                        ${renderScoreBar('Protocol Support (30%)', data.protocol_support_score)}
+                        ${renderScoreBar('Key Exchange (30%)', data.key_exchange_score)}
+                        ${renderScoreBar('Cipher Strength (40%)', data.cipher_strength_score)}
+                    </div>
+                `;
+            }
+            
+            // Subcategory Grades
+            html += `
+                <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                    <h4>Detailed Grades:</h4>
+                    <p>🔐 Protocol/Cipher: <strong>${data.protocol_grade || 'N/A'}</strong> (${data.protocol_score || 0}/100)</p>
+                    <p>📜 Certificate: <strong>${data.certificate_grade || 'N/A'}</strong> (${data.certificate_score || 0}/100)</p>
+                </div>
+            `;
+            
+            // Security Issues Section
+            if (data.grade_degradations && data.grade_degradations.length > 0) {
+                html += `
+                    <div class="security-issues">
+                        <h3>⚠️ Security Issues Found</h3>
+                        <p>The following issues are affecting your SSL/TLS grade:</p>
+                `;
+                
+                // Group issues by category
+                const issuesByCategory = {};
+                data.grade_degradations.forEach(issue => {
+                    if (!issuesByCategory[issue.category]) {
+                        issuesByCategory[issue.category] = [];
+                    }
+                    issuesByCategory[issue.category].push(issue);
+                });
+                
+                // Display issues by category
+                Object.keys(issuesByCategory).forEach(category => {
+                    const categoryName = {
+                        'protocol': 'Protocol Issues',
+                        'key_exchange': 'Key Exchange Issues',
+                        'cipher': 'Cipher Suite Issues',
+                        'certificate': 'Certificate Issues'
+                    }[category] || category;
+                    
+                    html += `<div class="issue-category"><h4>${categoryName}</h4>`;
+                    
+                    issuesByCategory[category].forEach(issue => {
+                        html += `
+                            <div class="issue-item">
+                                <div class="issue-header">${issue.issue}</div>
+                                <div class="issue-details">Details: ${issue.details}</div>
+                                <div class="issue-impact">Impact: ${issue.impact}</div>
+                                <div class="issue-remediation">
+                                    <strong>How to fix:</strong> ${issue.remediation}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+            }
+            
             // Certificate info
-            if (result.certificate) {
-                const cert = result.certificate;
+            if (result.certificate || data.certificate_expires_at) {
+                const cert = result.certificate || {};
                 const validClass = cert.is_valid ? 'status-completed' : 'status-failed';
+                
                 html += `
                     <div class="section">
-                        <h3>Certificate</h3>
-                        <p><strong>Subject:</strong> ${cert.subject}</p>
-                        <p><strong>Issuer:</strong> ${cert.issuer}</p>
-                        <p><strong>Valid:</strong> ${new Date(cert.not_before).toLocaleDateString()} - ${new Date(cert.not_after).toLocaleDateString()}</p>
+                        <h3>Certificate Details</h3>
+                `;
+                
+                // Certificate expiration warning
+                if (data.certificate_days_remaining !== undefined) {
+                    const daysRemaining = data.certificate_days_remaining;
+                    if (daysRemaining < 0) {
+                        html += `
+                            <div class="cert-expired">
+                                🚨 CERTIFICATE EXPIRED ${Math.abs(daysRemaining)} DAYS AGO! UPDATE IMMEDIATELY!
+                            </div>
+                        `;
+                    } else if (daysRemaining <= 30) {
+                        html += `
+                            <div class="cert-critical">
+                                ⚠️ CRITICAL: Certificate expires in ${daysRemaining} days! Update urgently!
+                            </div>
+                        `;
+                    } else if (daysRemaining <= 60) {
+                        html += `
+                            <div class="cert-warning">
+                                ⚠️ WARNING: Certificate expires in ${daysRemaining} days. Plan renewal soon.
+                            </div>
+                        `;
+                    }
+                }
+                
+                html += `
+                        <p><strong>Subject:</strong> ${cert.subject || 'N/A'}</p>
+                        <p><strong>Issuer:</strong> ${data.certificate_issuer || cert.issuer || 'N/A'}</p>
+                        <p><strong>Valid:</strong> ${cert.not_before ? new Date(cert.not_before).toLocaleDateString() : 'N/A'} - ${data.certificate_expires_at ? new Date(data.certificate_expires_at).toLocaleDateString() : (cert.not_after ? new Date(cert.not_after).toLocaleDateString() : 'N/A')}</p>
+                        <p><strong>Key:</strong> ${data.certificate_key_type || cert.key_type || 'N/A'} ${data.certificate_key_size ? `(${data.certificate_key_size} bits)` : ''}</p>
                         <p><span class="status ${validClass}">${cert.is_valid ? 'Valid' : 'Invalid'}</span></p>
                     </div>
                 `;
             }
             
-            // Protocols
-            html += `
-                <div class="section">
-                    <h3>Supported Protocols</h3>
-                    <ul class="protocol-list">
-            `;
-            
-            result.supported_protocols.forEach(proto => {
-                if (proto.enabled) {
-                    const icon = proto.version >= 0x0303 ? '✅' : '⚠️';
-                    html += `<li>${icon} ${proto.name}</li>`;
-                }
-            });
-            
-            html += '</ul></div>';
-            
-            // Vulnerabilities
-            if (result.vulnerabilities && result.vulnerabilities.length > 0) {
+            // Weak Protocols
+            if (data.weak_protocols && data.weak_protocols.length > 0) {
                 html += `
                     <div class="section">
-                        <h3>Vulnerabilities</h3>
+                        <h3>🚫 Weak Protocols Detected</h3>
+                        <div class="weak-items">
+                `;
+                data.weak_protocols.forEach(proto => {
+                    html += `<div class="weak-item">${proto.name}</div>`;
+                });
+                html += '</div></div>';
+            }
+            
+            // Weak Ciphers
+            if (data.weak_ciphers && data.weak_ciphers.length > 0) {
+                html += `
+                    <div class="section">
+                        <h3>⚠️ Weak or Non-PFS Cipher Suites</h3>
+                        <p style="font-size: 14px; color: #666; margin-bottom: 10px;">These cipher suites should be disabled:</p>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                `;
+                
+                // Group by strength
+                const ciphersByStrength = {};
+                data.weak_ciphers.forEach(cipher => {
+                    const key = cipher.strength || 'UNKNOWN';
+                    if (!ciphersByStrength[key]) {
+                        ciphersByStrength[key] = [];
+                    }
+                    ciphersByStrength[key].push(cipher);
+                });
+                
+                ['WEAK', 'MEDIUM', 'STRONG', 'VERY_STRONG'].forEach(strength => {
+                    if (ciphersByStrength[strength]) {
+                        html += `<div style="margin-bottom: 15px;">
+                            <strong>${strength}${strength === 'STRONG' || strength === 'VERY_STRONG' ? ' (No Forward Secrecy)' : ''}:</strong>
+                            <ul style="margin-top: 5px;">`;
+                        ciphersByStrength[strength].forEach(cipher => {
+                            const fsIcon = cipher.forward_secrecy ? '🔒' : '🔓';
+                            html += `<li style="font-size: 13px;">${fsIcon} ${cipher.name} (${cipher.protocol})</li>`;
+                        });
+                        html += '</ul></div>';
+                    }
+                });
+                
+                html += '</div></div>';
+            }
+            
+            // Protocols
+            if (result.supported_protocols) {
+                html += `
+                    <div class="section">
+                        <h3>Supported Protocols</h3>
+                        <ul class="protocol-list">
+                `;
+                
+                result.supported_protocols.forEach(proto => {
+                    if (proto.enabled) {
+                        const icon = proto.version >= 0x0303 ? '✅' : '⚠️';
+                        html += `<li>${icon} ${proto.name}</li>`;
+                    }
+                });
+                
+                html += '</ul></div>';
+            }
+            
+            // Vulnerabilities
+            if (data.vulnerabilities && data.vulnerabilities.length > 0) {
+                html += `
+                    <div class="section">
+                        <h3>🔴 Vulnerabilities Detected</h3>
                         <ul class="vuln-list">
                 `;
                 
-                result.vulnerabilities.forEach(vuln => {
-                    const icon = vuln.severity === 'HIGH' ? '🔴' : '🟡';
-                    html += `<li>${icon} ${vuln.name} (${vuln.severity})</li>`;
+                data.vulnerabilities.forEach(vuln => {
+                    const icon = vuln.severity === 'CRITICAL' ? '🔴' : (vuln.severity === 'HIGH' ? '🟠' : '🟡');
+                    html += `<li>${icon} <strong>${vuln.name}</strong> (${vuln.severity})<br>
+                        <span style="font-size: 14px; color: #666;">${vuln.description}</span></li>`;
                 });
                 
                 html += '</ul></div>';
             }
             
             document.getElementById('results').innerHTML = html;
+        }
+        
+        function renderScoreBar(label, score) {
+            const fillClass = score >= 80 ? 'high' : score >= 50 ? 'medium' : 'low';
+            return `
+                <div class="score-bar">
+                    <div class="score-bar-label">
+                        <span>${label}</span>
+                        <span>${score}/100</span>
+                    </div>
+                    <div class="score-bar-track">
+                        <div class="score-bar-fill ${fillClass}" style="width: ${score}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function loadRecentScans() {
+            try {
+                const response = await fetch(`${API_BASE}/scans?limit=10`);
+                if (!response.ok) {
+                    throw new Error('Failed to load recent scans');
+                }
+                
+                const data = await response.json();
+                displayRecentScans(data.scans || []);
+            } catch (error) {
+                document.getElementById('scanHistory').innerHTML = 
+                    '<p style="color: #e74c3c;">Failed to load recent scans</p>';
+            }
+        }
+        
+        function displayRecentScans(scans) {
+            const historyDiv = document.getElementById('scanHistory');
+            
+            if (!scans || scans.length === 0) {
+                historyDiv.innerHTML = '<p style="color: #7f8c8d;">No scans yet. Start your first scan above!</p>';
+                return;
+            }
+            
+            let html = '';
+            scans.forEach(scan => {
+                const gradeClass = scan.grade === 'N/A' ? 'grade-NA' : `grade-${scan.grade ? scan.grade.replace('+', '\\+') : 'NA'}`;
+                const date = new Date(scan.created).toLocaleString();
+                
+                html += `
+                    <div class="scan-history-item" onclick="loadScanResult('${scan.id}')">
+                        <div>
+                            <div class="scan-target">${scan.target}</div>
+                            <div class="scan-date">${date}</div>
+                        </div>
+                        <div class="scan-meta">
+                            ${scan.status === 'completed' 
+                                ? `<div class="mini-grade ${gradeClass}">${scan.grade || 'N/A'}</div>
+                                   ${scan.score ? `<span style="color: #7f8c8d;">${scan.score}/100</span>` : ''}`
+                                : `<span class="status status-${scan.status}">${scan.status}</span>`
+                            }
+                        </div>
+                    </div>
+                `;
+            });
+            
+            historyDiv.innerHTML = html;
+        }
+        
+        async function loadScanResult(scanId) {
+            try {
+                const response = await fetch(`${API_BASE}/scans/${scanId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load scan result');
+                }
+                
+                const data = await response.json();
+                
+                // Show results section and display the scan
+                document.getElementById('results').style.display = 'block';
+                displayResults(data);
+                
+                // Scroll to results
+                document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+                
+                // After displaying results, reload recent scans to update the list
+                loadRecentScans();
+            } catch (error) {
+                alert('Failed to load scan result: ' + error.message);
+            }
         }
     </script>
 </body>

@@ -409,6 +409,11 @@ func evaluateCipherStrength(name string) string {
 }
 
 func hasForwardSecrecy(name string) bool {
+	// TLS 1.3 cipher suites always have forward secrecy
+	if strings.HasPrefix(name, "TLS_AES_") || strings.HasPrefix(name, "TLS_CHACHA20_") {
+		return true
+	}
+	// TLS 1.2 and below need ECDHE or DHE for forward secrecy
 	return strings.Contains(name, "ECDHE") || strings.Contains(name, "DHE")
 }
 
@@ -460,6 +465,102 @@ func calculateSSLLabsScore(result *Result) {
 	
 	// Convert score to grade
 	result.Grade = sslLabsScoreToGrade(result.Score)
+	
+	// Apply SSL Labs grade capping rules
+	result.Grade = applyGradeCaps(result)
+}
+
+func applyGradeCaps(result *Result) string {
+	currentGrade := result.Grade
+	maxGrade := "A+"
+	
+	// Check for 3DES - caps at B
+	for _, cipher := range result.CipherSuites {
+		if strings.Contains(cipher.Name, "3DES") {
+			maxGrade = minGrade(maxGrade, "B")
+			result.GradeDegradations = append(result.GradeDegradations, GradeDegradation{
+				Category:    "cipher",
+				Issue:       "3DES cipher suite support",
+				Details:     "3DES is obsolete and caps grade at B",
+				Impact:      "Grade capped at B maximum",
+				Remediation: "Remove all 3DES cipher suites",
+			})
+			break
+		}
+	}
+	
+	// Check for RC4 - caps at F
+	for _, cipher := range result.CipherSuites {
+		if strings.Contains(cipher.Name, "RC4") {
+			maxGrade = "F"
+			result.GradeDegradations = append(result.GradeDegradations, GradeDegradation{
+				Category:    "cipher",
+				Issue:       "RC4 cipher suite support",
+				Details:     "RC4 is broken and results in automatic F",
+				Impact:      "Automatic F grade",
+				Remediation: "Remove all RC4 cipher suites immediately",
+			})
+			break
+		}
+	}
+	
+	// Check for TLS 1.0 - caps at C (SSL Labs policy)
+	for _, proto := range result.SupportedProtocols {
+		if proto.Enabled && proto.Version == tls.VersionTLS10 {
+			maxGrade = minGrade(maxGrade, "C")
+			break
+		}
+	}
+	
+	// Check for no PFS at all - caps at B
+	hasPFS := false
+	for _, cipher := range result.CipherSuites {
+		if cipher.Forward {
+			hasPFS = true
+			break
+		}
+	}
+	if !hasPFS && len(result.CipherSuites) > 0 {
+		maxGrade = minGrade(maxGrade, "B")
+		result.GradeDegradations = append(result.GradeDegradations, GradeDegradation{
+			Category:    "key_exchange",
+			Issue:       "No forward secrecy support",
+			Details:     "No cipher suites support forward secrecy",
+			Impact:      "Grade capped at B maximum",
+			Remediation: "Enable ECDHE or DHE cipher suites",
+		})
+	}
+	
+	// Return the lower of current grade or max allowed grade
+	return minGrade(currentGrade, maxGrade)
+}
+
+func minGrade(a, b string) string {
+	// Grade order: A+ > A > B > C > D > E > F
+	gradeOrder := map[string]int{
+		"A+": 7,
+		"A":  6,
+		"B":  5,
+		"C":  4,
+		"D":  3,
+		"E":  2,
+		"F":  1,
+	}
+	
+	aVal, aOk := gradeOrder[a]
+	bVal, bOk := gradeOrder[b]
+	
+	if !aOk {
+		return b
+	}
+	if !bOk {
+		return a
+	}
+	
+	if aVal < bVal {
+		return a
+	}
+	return b
 }
 
 func calculateProtocolScore(result *Result) int {
@@ -467,11 +568,11 @@ func calculateProtocolScore(result *Result) int {
 		return 0
 	}
 	
-	// SSL Labs protocol scoring
+	// SSL Labs protocol scoring - updated to match real SSL Labs
 	protocolScores := map[uint16]int{
-		tls.VersionSSL30: 0,   // SSL 3.0
-		tls.VersionTLS10: 80,  // TLS 1.0
-		tls.VersionTLS11: 85,  // TLS 1.1
+		tls.VersionSSL30: 0,   // SSL 3.0 - Automatic F
+		tls.VersionTLS10: 20,  // TLS 1.0 - Deprecated
+		tls.VersionTLS11: 40,  // TLS 1.1 - Deprecated  
 		tls.VersionTLS12: 95,  // TLS 1.2
 		tls.VersionTLS13: 100, // TLS 1.3
 	}

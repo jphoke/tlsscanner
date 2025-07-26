@@ -43,4 +43,8 @@ postgres_data/
 # Logs
 *.log
 
+# Screenshots
+*.png
+Screenshot*
+
 CLAUDE.md

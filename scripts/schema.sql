@@ -28,6 +28,13 @@ CREATE TABLE IF NOT EXISTS scans (
     certificate_grade VARCHAR(2),
     certificate_score INTEGER,
     
+    -- Certificate details
+    certificate_expires_at TIMESTAMP,
+    certificate_days_remaining INTEGER,
+    certificate_issuer VARCHAR(255),
+    certificate_key_type VARCHAR(20),
+    certificate_key_size INTEGER,
+    
     result JSONB,
     error_message TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -38,6 +45,8 @@ CREATE TABLE IF NOT EXISTS scans (
 CREATE INDEX idx_scans_target ON scans(target);
 CREATE INDEX idx_scans_created_at ON scans(created_at DESC);
 CREATE INDEX idx_scans_status ON scans(status);
+CREATE INDEX idx_scans_certificate_expires ON scans(certificate_expires_at);
+CREATE INDEX idx_scans_grade ON scans(grade);
 
 -- Scan queue table
 CREATE TABLE IF NOT EXISTS scan_queue (
@@ -53,6 +62,61 @@ CREATE TABLE IF NOT EXISTS scan_queue (
 );
 
 CREATE INDEX idx_queue_status_priority ON scan_queue(status, priority DESC, created_at);
+
+-- Scan vulnerabilities (actual vulnerabilities found in scans)
+CREATE TABLE IF NOT EXISTS scan_vulnerabilities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    vulnerability_name VARCHAR(100) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    description TEXT,
+    affected BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_scan_vulnerabilities_scan_id ON scan_vulnerabilities(scan_id);
+CREATE INDEX idx_scan_vulnerabilities_severity ON scan_vulnerabilities(severity);
+
+-- Grade degradations (specific issues affecting the grade)
+CREATE TABLE IF NOT EXISTS scan_grade_degradations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    category VARCHAR(50) NOT NULL, -- protocol, cipher, key_exchange, certificate
+    issue VARCHAR(255) NOT NULL,
+    details TEXT,
+    impact VARCHAR(255),
+    remediation TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_grade_degradations_scan_id ON scan_grade_degradations(scan_id);
+CREATE INDEX idx_grade_degradations_category ON scan_grade_degradations(category);
+
+-- Weak protocols found
+CREATE TABLE IF NOT EXISTS scan_weak_protocols (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    protocol_name VARCHAR(20) NOT NULL,
+    protocol_version INTEGER,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_weak_protocols_scan_id ON scan_weak_protocols(scan_id);
+
+-- Weak cipher suites found
+CREATE TABLE IF NOT EXISTS scan_weak_ciphers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    cipher_id INTEGER,
+    cipher_name VARCHAR(100) NOT NULL,
+    has_forward_secrecy BOOLEAN NOT NULL DEFAULT false,
+    strength VARCHAR(20), -- WEAK, MEDIUM, STRONG, VERY_STRONG
+    protocol VARCHAR(20),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_weak_ciphers_scan_id ON scan_weak_ciphers(scan_id);
+CREATE INDEX idx_weak_ciphers_strength ON scan_weak_ciphers(strength);
 
 -- Vulnerabilities reference table
 CREATE TABLE IF NOT EXISTS vulnerabilities (

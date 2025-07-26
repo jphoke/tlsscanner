@@ -29,6 +29,9 @@ COPY --from=builder /build/api .
 # Copy static files
 COPY web/static ./static
 
+# Copy scripts for maintenance
+COPY scripts ./scripts
+
 EXPOSE 8080
 
 CMD ["./api"]

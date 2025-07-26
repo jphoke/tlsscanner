@@ -5,16 +5,24 @@ A fast, modern web portal for comprehensive TLS/SSL security testing. Built with
 ## Features
 
 - **Lightning Fast**: Native Go implementation is 10-100x faster than shell-based solutions
+- **SSL Labs Grading**: Industry-standard scoring methodology with detailed breakdowns
 - **Comprehensive Testing**: 
-  - Protocol version detection (SSL 3.0 - TLS 1.3)
-  - Cipher suite enumeration with security evaluation
-  - Certificate validation and chain analysis
+  - Protocol version detection (TLS 1.0 - TLS 1.3)
+  - Cipher suite enumeration with forward secrecy detection
+  - Certificate validation with expiration tracking
   - Vulnerability detection (weak protocols, cipher issues)
-- **Security Grading**: Automatic A+ to F ratings based on configuration
+  - Grade degradation analysis with remediation guidance
+- **Professional Web UI**:
+  - Visual SSL Labs score breakdown
+  - Certificate expiration warnings (critical/warning levels)
+  - Security issues with actionable remediation steps
+  - Recent scans history with click-to-view
+  - Unique scan ID tracking
 - **Real-time Updates**: WebSocket support for live scan progress
 - **RESTful API**: Full API for integration with CI/CD pipelines
+- **Persistent Storage**: PostgreSQL for scan history and security analysis
 - **Queue Management**: Built-in job queue with Redis for scalability
-- **Multiple Protocols**: Support for HTTPS, SMTPS, IMAPS, and more (coming soon)
+- **Docker Ready**: One-command deployment with docker-compose
 
 ## Quick Start
 
@@ -24,14 +32,19 @@ git clone https://github.com/yourusername/tlsscanner-portal
 cd tlsscanner-portal
 ```
 
-2. Start with Docker Compose:
+2. Copy environment configuration:
+```bash
+cp .env.example .env
+```
+
+3. Start with Docker Compose:
 ```bash
 docker-compose up -d
 ```
 
-3. Access the portal:
-- Web UI: http://localhost
-- API Documentation: http://localhost:8080/api/v1/health
+4. Access the portal:
+- Web UI: http://localhost:3000
+- API: http://localhost:8000/api/v1/health
 
 ## Architecture
 
@@ -52,19 +65,19 @@ docker-compose up -d
 
 ### Submit a scan:
 ```bash
-curl -X POST http://localhost:8080/api/v1/scans \
+curl -X POST http://localhost:8000/api/v1/scans \
   -H "Content-Type: application/json" \
   -d '{"target": "example.com"}'
 ```
 
 ### Get scan results:
 ```bash
-curl http://localhost:8080/api/v1/scans/{scan-id}
+curl http://localhost:8000/api/v1/scans/{scan-id}
 ```
 
 ### List all scans:
 ```bash
-curl http://localhost:8080/api/v1/scans
+curl http://localhost:8000/api/v1/scans
 ```
 
 ## Performance Comparison
@@ -72,7 +85,15 @@ curl http://localhost:8080/api/v1/scans
 | Tool | Scan Time (avg) | Resource Usage |
 |------|----------------|----------------|
 | testssl.sh | 60-120s | High (spawns many processes) |
-| TLS Scanner Portal | 2-10s | Low (single binary) |
+| TLS Scanner Portal | 0.5-2s | Low (single binary) |
+
+## Screenshots
+
+The web UI provides a comprehensive view of your SSL/TLS security posture:
+- SSL Labs grade with visual score breakdown
+- Security issues with remediation guidance
+- Certificate expiration warnings
+- Recent scan history
 
 ## Development
 
@@ -110,10 +131,40 @@ tlsscanner-portal/
 
 ## Configuration
 
-Environment variables:
+Environment variables (set in .env file):
 - `DATABASE_URL`: PostgreSQL connection string
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: Database credentials
 - `REDIS_URL`: Redis connection string
 - `PORT`: API server port (default: 8080)
+
+## Maintenance
+
+### Database Cleanup
+
+Remove old scan data to manage database size:
+
+```bash
+# Delete scans older than 7 days
+make cleanup-7
+
+# Delete scans older than 30 days
+make cleanup-30
+
+# Delete scans older than 90 days
+make cleanup-90
+
+# Delete ALL scans (use with caution!)
+make cleanup-all
+
+# Or run directly:
+./scripts/cleanup-db.sh [7|30|90|ALL]
+```
+
+The cleanup script:
+- Reads database credentials from your .env file
+- Confirms before deleting data
+- Removes scans and all related data (vulnerabilities, grade degradations, etc.)
+- Optimizes the database after cleanup
 
 ## Security Considerations
 

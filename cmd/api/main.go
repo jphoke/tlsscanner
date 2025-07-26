@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -174,18 +173,27 @@ func (s *Server) getScan(c *gin.Context) {
 	var grade, protocolGrade, certificateGrade sql.NullString
 	var score, protocolScore, certificateScore sql.NullInt64
 	var protocolSupportScore, keyExchangeScore, cipherStrengthScore sql.NullInt64
+	var certExpiresAt sql.NullTime
+	var certDaysRemaining sql.NullInt64
+	var certIssuer, certKeyType sql.NullString
+	var certKeySize sql.NullInt64
 	
 	err := s.db.QueryRow(`
 		SELECT status, grade, score, 
 		       protocol_support_score, key_exchange_score, cipher_strength_score,
 		       protocol_grade, protocol_score, 
-		       certificate_grade, certificate_score, result
+		       certificate_grade, certificate_score,
+		       certificate_expires_at, certificate_days_remaining,
+		       certificate_issuer, certificate_key_type, certificate_key_size,
+		       result
 		FROM scans
 		WHERE id = $1
 	`, scanID).Scan(&status, &grade, &score, 
 		&protocolSupportScore, &keyExchangeScore, &cipherStrengthScore,
 		&protocolGrade, &protocolScore,
-		&certificateGrade, &certificateScore, &result)
+		&certificateGrade, &certificateScore,
+		&certExpiresAt, &certDaysRemaining,
+		&certIssuer, &certKeyType, &certKeySize, &result)
 	
 	if err == sql.ErrNoRows {
 		c.JSON(404, gin.H{"error": "Scan not found"})
@@ -238,9 +246,126 @@ func (s *Server) getScan(c *gin.Context) {
 		response["certificate_score"] = certificateScore.Int64
 	}
 	
+	// Add certificate details
+	if certExpiresAt.Valid {
+		response["certificate_expires_at"] = certExpiresAt.Time
+	}
+	if certDaysRemaining.Valid {
+		response["certificate_days_remaining"] = certDaysRemaining.Int64
+	}
+	if certIssuer.Valid {
+		response["certificate_issuer"] = certIssuer.String
+	}
+	if certKeyType.Valid {
+		response["certificate_key_type"] = certKeyType.String
+	}
+	if certKeySize.Valid {
+		response["certificate_key_size"] = certKeySize.Int64
+	}
+	
 	if result != nil {
 		response["result"] = result
 	}
+	
+	// Get vulnerabilities
+	vulnerabilities := []gin.H{}
+	vulnRows, err := s.db.Query(`
+		SELECT vulnerability_name, severity, description, affected
+		FROM scan_vulnerabilities
+		WHERE scan_id = $1
+		ORDER BY severity
+	`, scanID)
+	if err == nil {
+		defer vulnRows.Close()
+		for vulnRows.Next() {
+			var name, severity, description string
+			var affected bool
+			if err := vulnRows.Scan(&name, &severity, &description, &affected); err == nil {
+				vulnerabilities = append(vulnerabilities, gin.H{
+					"name":        name,
+					"severity":    severity,
+					"description": description,
+					"affected":    affected,
+				})
+			}
+		}
+	}
+	response["vulnerabilities"] = vulnerabilities
+	
+	// Get grade degradations
+	degradations := []gin.H{}
+	degRows, err := s.db.Query(`
+		SELECT category, issue, details, impact, remediation
+		FROM scan_grade_degradations
+		WHERE scan_id = $1
+		ORDER BY category
+	`, scanID)
+	if err == nil {
+		defer degRows.Close()
+		for degRows.Next() {
+			var category, issue, details, impact, remediation string
+			if err := degRows.Scan(&category, &issue, &details, &impact, &remediation); err == nil {
+				degradations = append(degradations, gin.H{
+					"category":    category,
+					"issue":       issue,
+					"details":     details,
+					"impact":      impact,
+					"remediation": remediation,
+				})
+			}
+		}
+	}
+	response["grade_degradations"] = degradations
+	
+	// Get weak protocols
+	weakProtocols := []gin.H{}
+	protoRows, err := s.db.Query(`
+		SELECT protocol_name, protocol_version
+		FROM scan_weak_protocols
+		WHERE scan_id = $1
+		ORDER BY protocol_version
+	`, scanID)
+	if err == nil {
+		defer protoRows.Close()
+		for protoRows.Next() {
+			var name string
+			var version int
+			if err := protoRows.Scan(&name, &version); err == nil {
+				weakProtocols = append(weakProtocols, gin.H{
+					"name":    name,
+					"version": version,
+				})
+			}
+		}
+	}
+	response["weak_protocols"] = weakProtocols
+	
+	// Get weak ciphers
+	weakCiphers := []gin.H{}
+	cipherRows, err := s.db.Query(`
+		SELECT cipher_id, cipher_name, has_forward_secrecy, strength, protocol
+		FROM scan_weak_ciphers
+		WHERE scan_id = $1
+		ORDER BY strength, cipher_name
+	`, scanID)
+	if err == nil {
+		defer cipherRows.Close()
+		for cipherRows.Next() {
+			var id int
+			var name, strength, protocol string
+			var hasFS bool
+			if err := cipherRows.Scan(&id, &name, &hasFS, &strength, &protocol); err == nil {
+				weakCiphers = append(weakCiphers, gin.H{
+					"id":                 id,
+					"name":               name,
+					"forward_secrecy":    hasFS,
+					"strength":           strength,
+					"protocol":           protocol,
+				})
+			}
+		}
+	}
+	response["weak_ciphers"] = weakCiphers
 	
 	c.JSON(200, response)
 }
@@ -434,6 +559,23 @@ func (s *Server) worker(id int) {
 		} else {
 			// Save results
 			resultJSON, _ := json.Marshal(result)
+			
+			// Calculate certificate days remaining
+			var certExpiresAt *time.Time
+			var certDaysRemaining *int
+			var certIssuer, certKeyType *string
+			var certKeySize *int
+			
+			if result.Certificate != nil {
+				certExpiresAt = &result.Certificate.NotAfter
+				days := int(time.Until(result.Certificate.NotAfter).Hours() / 24)
+				certDaysRemaining = &days
+				certIssuer = &result.Certificate.Issuer
+				certKeyType = &result.Certificate.KeyType
+				certKeySize = &result.Certificate.KeySize
+			}
+			
+			// Update main scan record
 			s.db.Exec(`
 				UPDATE scans 
 				SET status = 'completed', 
@@ -449,13 +591,59 @@ func (s *Server) worker(id int) {
 				    result = $11,
 				    duration_ms = $12,
 				    ip = $13,
+				    certificate_expires_at = $14,
+				    certificate_days_remaining = $15,
+				    certificate_issuer = $16,
+				    certificate_key_type = $17,
+				    certificate_key_size = $18,
 				    updated_at = NOW()
 				WHERE id = $1
 			`, scanID, result.Grade, result.Score, 
 			   result.ProtocolSupportScore, result.KeyExchangeScore, result.CipherStrengthScore,
 			   result.ProtocolGrade, result.ProtocolScore,
 			   result.CertificateGrade, result.CertificateScore,
-			   resultJSON, int(result.Duration.Milliseconds()), result.IP)
+			   resultJSON, int(result.Duration.Milliseconds()), result.IP,
+			   certExpiresAt, certDaysRemaining, certIssuer, certKeyType, certKeySize)
+			
+			// Save vulnerabilities
+			for _, vuln := range result.Vulnerabilities {
+				s.db.Exec(`
+					INSERT INTO scan_vulnerabilities (scan_id, vulnerability_name, severity, description, affected)
+					VALUES ($1, $2, $3, $4, $5)
+				`, scanID, vuln.Name, vuln.Severity, vuln.Description, vuln.Affected)
+			}
+			
+			// Save grade degradations
+			for _, deg := range result.GradeDegradations {
+				s.db.Exec(`
+					INSERT INTO scan_grade_degradations (scan_id, category, issue, details, impact, remediation)
+					VALUES ($1, $2, $3, $4, $5, $6)
+				`, scanID, deg.Category, deg.Issue, deg.Details, deg.Impact, deg.Remediation)
+			}
+			
+			// Save weak protocols
+			for _, proto := range result.SupportedProtocols {
+				if proto.Name == "TLS 1.0" || proto.Name == "TLS 1.1" || proto.Name == "SSL 3.0" || proto.Name == "SSL 2.0" {
+					s.db.Exec(`
+						INSERT INTO scan_weak_protocols (scan_id, protocol_name, protocol_version)
+						VALUES ($1, $2, $3)
+					`, scanID, proto.Name, proto.Version)
+				}
+			}
+			
+			// Save weak cipher suites
+			for _, cipher := range result.CipherSuites {
+				// Mark as weak if: WEAK strength, MEDIUM strength, or (not TLS 1.3 and no forward secrecy)
+				isWeak := cipher.Strength == "WEAK" || cipher.Strength == "MEDIUM"
+				isMissingPFS := !cipher.Forward && cipher.Protocol != "TLS 1.3"
+				
+				if isWeak || isMissingPFS {
+					s.db.Exec(`
+						INSERT INTO scan_weak_ciphers (scan_id, cipher_id, cipher_name, has_forward_secrecy, strength, protocol)
+						VALUES ($1, $2, $3, $4, $5, $6)
+					`, scanID, cipher.ID, cipher.Name, cipher.Forward, cipher.Strength, cipher.Protocol)
+				}
+			}
 		}
 		
 		// Remove from queue

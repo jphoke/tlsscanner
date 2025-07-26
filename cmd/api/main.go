@@ -22,7 +22,7 @@ import (
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "github.com/jphoke/tlsscanner-portal/docs" // swagger docs
+	_ "github.com/jphoke/tlsscanner-portal/docs/swagger" // swagger docs
 )
 
 type Server struct {

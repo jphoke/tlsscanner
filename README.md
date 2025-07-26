@@ -53,9 +53,18 @@ That's it! The scanner is now ready to use.
   <br/>
 
 <div align="center">
+  <img width="1179" height="952" alt="Screenshot 2025-07-26 at 17 22 55" src="https://github.com/user-attachments/assets/1d62e1cf-f9dd-4679-97f9-eebc0baa9453" />
+  <p><em>Scan results for SMTP/S Connections using STARTTLS</em></p>
+</div>
+
+<br/>
+
+<div align="center">
   <img width="1447" alt="Screenshot of Swagger API Documents" src="https://github.com/user-attachments/assets/55960b63-76a6-430d-81c5-311a35db0723" />
   <p><em>Interactive API documentation with Swagger UI</em></p>
 </div>
+
+
 
 ### Standalone CLI
 

@@ -48,13 +48,13 @@
 ## 🚀 High Priority - Next Features
 
 ### Comments Field for Scans
-- [ ] Add comments field to scan records (0-100 chars)
-  - [ ] Database schema update: ALTER TABLE scans ADD COLUMN comments VARCHAR(100)
-  - [ ] API: Accept comments in POST /scans request
-  - [ ] API: Return comments in GET /scans responses
-  - [ ] Web UI: Add comments input field
-  - [ ] Web UI: Display comments in scan results and recent scans
-  - [ ] Use cases: Change tickets, test purposes, analyst notes
+- [x] Add comments field to scan records (0-100 chars)
+  - [x] Database schema update: ALTER TABLE scans ADD COLUMN comments VARCHAR(100)
+  - [x] API: Accept comments in POST /scans request
+  - [x] API: Return comments in GET /scans responses
+  - [x] Web UI: Add comments input field
+  - [x] Web UI: Display comments in scan results and recent scans
+  - [x] Use cases: Change tickets, test purposes, analyst notes
 
 ### STARTTLS Support
 - [ ] Implement STARTTLS protocol negotiation

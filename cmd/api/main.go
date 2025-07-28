@@ -723,7 +723,20 @@ func (s *Server) healthCheck(c *gin.Context) {
 		return
 	}
 	
-	c.JSON(200, gin.H{"status": "healthy"})
+	// Include custom CA status
+	customCAPath := os.Getenv("CUSTOM_CA_PATH")
+	hasCustomCA := customCAPath != ""
+	
+	response := gin.H{
+		"status": "healthy",
+		"custom_ca_enabled": hasCustomCA,
+	}
+	
+	if hasCustomCA {
+		response["custom_ca_path"] = customCAPath
+	}
+	
+	c.JSON(200, response)
 }
 
 func (s *Server) startWorkers(count int) {

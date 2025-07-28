@@ -393,6 +393,16 @@
             font-weight: bold;
             color: white;
         }
+        
+        .custom-ca-note {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin-top: 10px;
+            color: #155724;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -438,9 +448,35 @@
         const API_BASE = '/api/v1';
         let currentScanId = null;
         let ws = null;
+        let customCAEnabled = false;
+        
+        // Check custom CA status
+        checkCustomCAStatus();
         
         // Load recent scans on page load
         loadRecentScans();
+        
+        async function checkCustomCAStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    customCAEnabled = data.custom_ca_enabled || false;
+                    
+                    if (customCAEnabled) {
+                        // Add indicator to header
+                        const header = document.querySelector('header .container');
+                        const indicator = document.createElement('div');
+                        indicator.style.cssText = 'float: right; background: #27ae60; color: white; padding: 5px 15px; border-radius: 4px; font-size: 14px; margin-top: 15px;';
+                        indicator.innerHTML = '🔐 Custom CA Active';
+                        indicator.title = `Using custom CAs from: ${data.custom_ca_path || '/certs/custom-ca'}`;
+                        header.appendChild(indicator);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check custom CA status:', error);
+            }
+        }
         
         // Real-time validation
         document.getElementById('target').addEventListener('blur', function() {
@@ -789,8 +825,41 @@
                         <p><strong>Valid:</strong> ${cert.not_before ? new Date(cert.not_before).toLocaleDateString() : 'N/A'} - ${data.certificate_expires_at ? new Date(data.certificate_expires_at).toLocaleDateString() : (cert.not_after ? new Date(cert.not_after).toLocaleDateString() : 'N/A')}</p>
                         <p><strong>Key:</strong> ${data.certificate_key_type || cert.key_type || 'N/A'} ${data.certificate_key_size ? `(${data.certificate_key_size} bits)` : ''}</p>
                         <p><span class="status ${validClass}">${cert.is_valid ? 'Valid' : 'Invalid'}</span></p>
-                    </div>
                 `;
+                
+                // Show validation errors or notes
+                if (cert.validation_errors && cert.validation_errors.length > 0) {
+                    const customCANotes = [];
+                    const realErrors = [];
+                    
+                    cert.validation_errors.forEach(error => {
+                        if (error.includes('custom CA') || error.includes('Root CA certificate (trusted')) {
+                            customCANotes.push(error);
+                        } else {
+                            realErrors.push(error);
+                        }
+                    });
+                    
+                    // Show custom CA notes first in a nice box
+                    if (customCANotes.length > 0) {
+                        html += '<div class="custom-ca-note">';
+                        customCANotes.forEach(note => {
+                            html += `<div>✅ ${note}</div>`;
+                        });
+                        html += '</div>';
+                    }
+                    
+                    // Show real errors
+                    if (realErrors.length > 0) {
+                        html += '<div style="margin-top: 10px;">';
+                        realErrors.forEach(error => {
+                            html += `<p style="color: #e74c3c; font-size: 14px;">❌ ${error}</p>`;
+                        });
+                        html += '</div>';
+                    }
+                }
+                
+                html += '</div>';
             }
             
             // Weak Protocols

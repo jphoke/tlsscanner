@@ -1,40 +1,27 @@
 # TLS Scanner Portal
 
-A blazing-fast web portal for comprehensive TLS/SSL security testing. Get detailed security analysis in seconds, not minutes.
+Lightning-fast TLS/SSL security scanner with web UI. Get comprehensive security analysis in seconds, not minutes.
 
-## ✨ Key Features
-
-- **⚡ Lightning Fast** - 10-100x faster than shell-based tools (0.5-2s vs 60-120s)
-- **🏆 SSL Labs Grading** - Industry-standard scoring with proper grade capping
-- **📧 Automatic STARTTLS** - Zero-config mail server scanning (SMTP, IMAP, POP3)
-- **🔍 Comprehensive Analysis** - Protocols, ciphers, certificates, vulnerabilities
-- **☣️ Vulnerability Detection** - BEAST, SWEET32, FREAK, RC4, and more with CVE tracking
-- **🌐 Modern Web UI** - Real-time updates, scan history, actionable insights
-- **🔌 RESTful API** - Full Swagger documentation for easy integration
-- **🖥️ Standalone CLI** - Use without web portal for scripts and automation
-- **🐳 Docker Ready** - Production deployment in minutes
-
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# Clone the repository
 git clone https://github.com/jphoke/tlsscanner
 cd tlsscanner/tlsscanner-portal
-
-# Copy environment template
-cp .env.example .env
-# Edit .env if you need custom ports (see Port Configuration below)
-
-# Start everything with Docker
-docker compose up -d --build
-
-# Access the portal
-# Web UI: http://localhost:3000
-# API Docs: http://localhost:8000/swagger/index.html
+docker compose up -d
 ```
 
-That's it! The scanner is now ready to use.
-### Screenshots
+Open http://localhost:3000 - that's it!
+
+## Features
+
+- ⚡ 100x faster than bash-based scanners
+- 🏆 SSL Labs grading
+- 📧 Automatic STARTTLS for mail servers (additional protocols soon!)
+- 🔍 Vulnerability detection with CVE tracking
+- 🏢 Custom CA support for internal certificates
+- 🌐 Modern web UI with real-time updates
+
+## Screenshots
 
 <div align="center">
   <img width="1199" alt="Screenshot of main portal page" src="https://github.com/user-attachments/assets/81ed1d69-1b93-4af1-a638-ab4706754568" />
@@ -69,181 +56,35 @@ That's it! The scanner is now ready to use.
   <p><em>Interactive API documentation with Swagger UI</em></p>
 </div>
 
+## Basic Usage
 
+### Web Portal
+Navigate to http://localhost:3000 and enter any hostname:
+- `example.com` - Standard HTTPS scan
+- `smtp.gmail.com:587` - SMTP with STARTTLS
+- `192.168.1.1` - Internal IP addresses
 
-### Standalone CLI
-
-You can also build and use the scanner as a standalone command-line tool:
-
+### Command Line
 ```bash
-# Build the scanner
-go build -o tlsscanner ./cmd/scanner
-
-# Run a scan
+# Basic scan
 ./tlsscanner -target example.com
+./tlsscanner -target 192.168.1.1:8443
 
-# JSON output
-./tlsscanner -target example.com -json
+# JSON output (works with any host:port)
+./tlsscanner -target smtp.gmail.com:587 -json
+
+# With custom CA certificates (for internal/corporate CAs)
+./tlsscanner -target internal.company.com -ca-path /path/to/ca/certs
 ```
 
-See the [Usage Guide](USAGE.md#command-line-scanner) for detailed CLI instructions.
+The scanner automatically detects STARTTLS for mail ports and trusts certificates signed by CAs in the specified directory.
 
-## 📸 What It Does
+## Next Steps
 
-The TLS Scanner Portal provides comprehensive SSL/TLS security analysis for any endpoint:
+- [Installation Options](INSTALL.md) - Custom ports, CLI-only, production setup
+- [API Documentation](docs/API.md) - REST API integration
+- [Contributing](docs/CONTRIBUTING.md) - Help improve the scanner
 
-### Security Grading
-- **SSL Labs Grade** (A+ to F) with detailed scoring breakdown
-- **Protocol Analysis** - Detection of TLS 1.0 through TLS 1.3
-- **Cipher Suite Evaluation** - Strength assessment and forward secrecy detection
-- **Certificate Validation** - Expiration tracking and trust chain verification
-
-### Automatic Protocol Detection
-The scanner automatically handles various protocols and services:
-- **HTTPS** servers on any port
-- **Mail servers** with automatic STARTTLS negotiation
-  - SMTP (ports 25, 587)
-  - IMAP (port 143)
-  - POP3 (port 110)
-- **Direct TLS** connections (SMTPS, IMAPS, POP3S)
-- **Custom services** on non-standard ports
-
-### Security Analysis
-- **Vulnerability Detection** - Comprehensive scanning for known TLS vulnerabilities:
-  - BEAST Attack (CVE-2011-3389) - TLS 1.0 with CBC ciphers
-  - SWEET32 (CVE-2016-2183) - 3DES birthday attacks
-  - FREAK (CVE-2015-0204) - Export-grade cipher suites
-  - RC4 weaknesses (CVE-2013-2566, CVE-2015-2808)
-  - Anonymous cipher suites and weak DH parameters
-- **CVE Tracking** - Each vulnerability includes relevant CVE IDs and CVSS scores
-- **Grade Degradation Tracking** - Shows specific issues impacting your grade
-- **Remediation Guidance** - Actionable steps to improve security
-- **Forward Secrecy Detection** - Including proper TLS 1.3 support
-
-## 🔧 Port Configuration
-
-If you have services already running on the default ports, you can customize them in your `.env` file:
-
-```bash
-# Default ports (change if you have conflicts)
-POSTGRES_HOST_PORT=5432    # PostgreSQL
-REDIS_HOST_PORT=6379       # Redis
-API_HOST_PORT=8000         # API server
-WEB_HOST_PORT=3000         # Web UI
-```
-
-For example, if PostgreSQL is already running on 5432:
-```bash
-# In your .env file
-POSTGRES_HOST_PORT=5433    # Use a different port
-```
-
-## 🔐 Custom CA Configuration
-
-The scanner supports custom Certificate Authorities (CAs) for environments using internal CAs like Active Directory Certificate Services.
-
-### Adding Custom CAs
-
-1. Create a directory for your CA certificates:
-```bash
-mkdir -p custom-ca
-```
-
-2. Place your CA certificates (`.crt`, `.pem`, `.cer`, or `.ca` files) in the `custom-ca` directory
-
-3. Configure the scanner to use your custom CAs in `.env`:
-```bash
-# Path to directory containing custom CA certificates
-HOST_CUSTOM_CA_PATH=./custom-ca
-
-# Enable verbose logging to see which CAs are loaded
-SCANNER_VERBOSE=true
-```
-
-### Common Use Cases
-
-**Active Directory Certificate Services (AD CS):**
-```bash
-# Export AD root CA certificate (on Windows)
-certutil -ca.cert custom-ca/ad-root-ca.crt
-```
-
-**Internal Certificate Authority:**
-```bash
-# Copy your internal CA certificate
-cp /path/to/internal-ca.pem custom-ca/
-```
-
-### Verification
-
-After adding custom CAs, verify they're loaded:
-```bash
-# Check API logs
-docker compose logs api | grep "Loaded custom CA"
-
-# Test with CLI
-./scanner -target internal.server.com -ca-path ./custom-ca
-```
-
-## 📚 Documentation
-
-- [**Usage Guide**](USAGE.md) - Detailed instructions for web UI and API usage
-- [**API Reference**](http://localhost:8000/swagger/index.html) - Interactive API documentation
-- [**Development Guide**](docs/DEVELOPMENT.md) - Building from source and contributing
-- [**Deployment Guide**](docs/DEPLOYMENT.md) - Production deployment instructions
-- [**Maintenance Guide**](docs/MAINTENANCE.md) - Database cleanup and administration
-
-## 🏗️ Architecture
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Web UI    │────▶│   REST API  │────▶│  Go Scanner │
-│   (HTML/JS) │     │  (Gin/Go)   │     │   Engine    │
-└─────────────┘     └─────────────┘     └─────────────┘
-                            │                    │
-                            ▼                    ▼
-                    ┌─────────────┐     ┌─────────────┐
-                    │  PostgreSQL │     │    Redis    │
-                    │   Database  │     │    Queue    │
-                    └─────────────┘     └─────────────┘
-```
-
-### Technology Stack
-- **Backend**: Go 1.23+ with Gin framework
-- **Scanner**: Native Go crypto/tls for maximum performance
-- **Database**: PostgreSQL 15+ for scan history
-- **Queue**: Redis 7+ for job management
-- **Frontend**: Vanilla JavaScript with real-time WebSocket updates
-- **Deployment**: Docker Compose with nginx reverse proxy
-
-## 🎯 Use Cases
-
-- **Security Teams**: Regular security assessments and compliance monitoring
-- **DevOps**: Pre-deployment SSL/TLS configuration validation
-- **System Administrators**: Mail server security verification
-- **Compliance**: Ensure systems meet security standards
-- **Development**: API integration for automated security testing
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Development Guide](docs/DEVELOPMENT.md) for:
-- Setting up your development environment
-- Code style guidelines
-- Testing requirements
-- Pull request process
-
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🛟 Support
-
-- **Issues**: [GitHub Issues](https://github.com/jphoke/tlsscanner/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/jphoke/tlsscanner/discussions)
-- **Wiki**: [Project Wiki](https://github.com/jphoke/tlsscanner/wiki)
-
-## 🙏 Acknowledgments
-
-- SSL Labs for the grading methodology
-- The Go crypto/tls team for the excellent TLS library
-- All contributors who have helped improve this project

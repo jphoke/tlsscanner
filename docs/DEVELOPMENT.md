@@ -1,101 +1,90 @@
 # Development Guide
 
-This guide covers setting up your development environment, understanding the codebase, and contributing to the TLS Scanner Portal.
+This guide covers the architecture, building from source, and key development workflows for the TLS Scanner Portal.
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
+- [Architecture Overview](#architecture-overview)
 - [Development Setup](#development-setup)
 - [Project Structure](#project-structure)
 - [Building from Source](#building-from-source)
-- [Running Tests](#running-tests)
-- [Code Style](#code-style)
-- [Making Changes](#making-changes)
+- [Key Design Decisions](#key-design-decisions)
+- [Common Development Tasks](#common-development-tasks)
+  - [Adding a New Vulnerability Check](#adding-a-new-vulnerability-check)
+  - [Testing with Custom CAs](#testing-with-custom-cas)
+  - [Adding STARTTLS Protocol](#adding-starttls-protocol)
+  - [API Endpoint Addition](#api-endpoint-addition)
+- [Testing](#testing)
+- [Environment Variables](#environment-variables)
 - [Debugging](#debugging)
-- [Contributing](#contributing)
+- [Code Style](#code-style)
+- [Troubleshooting](#troubleshooting)
+- [Resources](#resources)
 
-## Prerequisites
+## Architecture Overview
 
-### Required Software
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Web UI        │────▶│   REST API      │────▶│  Scanner Core   │
+│  (Vanilla JS)   │     │  (Gin/Go)       │     │  (Go crypto/tls)│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                │                         │
+                                ▼                         ▼
+                        ┌─────────────────┐     ┌─────────────────┐
+                        │   PostgreSQL    │     │     Redis       │
+                        │  (Scan History) │     │  (Job Queue)    │
+                        └─────────────────┘     └─────────────────┘
+```
 
-- **Go 1.23+** - [Installation guide](https://go.dev/doc/install)
-- **PostgreSQL 15+** - For database
-- **Redis 7+** - For job queue
-- **Docker & Docker Compose** - For containerized development
-- **Git** - For version control
+### Key Components
 
-### Optional Tools
+1. **Scanner Core** (`pkg/scanner/`)
+   - TLS connection handling
+   - SSL Labs grading algorithm
+   - Certificate validation
+   - Vulnerability detection
+   - STARTTLS negotiation
 
-- **Make** - For using Makefile commands
-- **jq** - For JSON parsing in scripts
-- **curl** - For API testing
-- **VS Code** or **GoLand** - Recommended IDEs
+2. **API Server** (`cmd/api/`)
+   - RESTful endpoints
+   - WebSocket support
+   - Worker pool management
+   - Database operations
+
+3. **CLI Tool** (`cmd/scanner/`)
+   - Command-line interface
+   - Direct scanner access
+   - JSON/text output
+
+4. **Web UI** (`web/static/`)
+   - Single-page application
+   - Real-time updates
+   - Responsive design
 
 ## Development Setup
 
-### 1. Clone the Repository
+### Prerequisites
+
+- Go 1.23+
+- Docker & Docker Compose
+- Git
+- Make (optional)
+
+### Quick Start
 
 ```bash
+# Clone repository
 git clone https://github.com/jphoke/tlsscanner
 cd tlsscanner/tlsscanner-portal
-```
 
-### 2. Set Up Environment
-
-```bash
-# Copy environment template
+# Set up environment
 cp .env.example .env
 
-# Edit .env with your settings
-# Default values work for local development
-
-# If you have port conflicts, adjust in .env:
-# POSTGRES_HOST_PORT=5433  # If 5432 is in use
-# REDIS_HOST_PORT=6380     # If 6379 is in use
-# API_HOST_PORT=8001       # If 8000 is in use
-# WEB_HOST_PORT=3001       # If 3000 is in use
-```
-
-### 3. Install Go Dependencies
-
-```bash
-go mod download
-go mod verify
-```
-
-### 4. Start Development Environment
-
-#### Option A: Docker Development (Recommended)
-
-```bash
-# Start all services
+# Start with Docker
 docker compose up -d
 
-# Watch logs
-docker compose logs -f
-
-# Rebuild after changes
-docker compose up -d --build
-```
-
-#### Option B: Local Development
-
-```bash
-# Start PostgreSQL and Redis (using Docker)
-# Use custom ports if defaults are in use
-docker run -d --name postgres -p ${POSTGRES_HOST_PORT:-5432}:5432 \
-  -e POSTGRES_PASSWORD=password postgres:15
-
-docker run -d --name redis -p ${REDIS_HOST_PORT:-6379}:6379 redis:7
-
-# Run database migrations
-psql -h localhost -U postgres -p ${POSTGRES_HOST_PORT:-5432} -f scripts/schema.sql
-
-# Start the API server
-PORT=${API_HOST_PORT:-8000} go run cmd/api/main.go
-
-# In another terminal, serve the web UI
-python3 -m http.server ${WEB_HOST_PORT:-3000} -d web/static
+# Or run locally
+go run cmd/api/main.go
 ```
 
 ## Project Structure
@@ -103,34 +92,20 @@ python3 -m http.server ${WEB_HOST_PORT:-3000} -d web/static
 ```
 tlsscanner-portal/
 ├── cmd/
-│   ├── api/
-│   │   ├── main.go         # API server entry point
-│   │   └── docs.go         # Swagger docs generation
-│   └── scanner/
-│       └── main.go         # CLI scanner entry point
+│   ├── api/          # API server entry point
+│   └── scanner/      # CLI tool entry point
 ├── pkg/
-│   ├── database/
-│   │   └── postgres.go     # Database connection and queries
-│   ├── models/
-│   │   └── scan.go         # Data models
-│   └── scanner/
-│       ├── scanner.go      # Core scanning logic
-│       ├── protocols.go    # Port-to-service mapping
-│       └── starttls.go     # STARTTLS negotiation
+│   ├── scanner/      # Core scanner library
+│   │   ├── scanner.go      # Main scanning logic
+│   │   ├── protocols.go    # Port/service detection
+│   │   └── starttls.go     # STARTTLS protocols
+│   ├── database/     # Database layer
+│   └── models/       # Data structures
 ├── internal/
-│   └── worker/
-│       └── worker.go       # Background job processing
-├── web/
-│   └── static/
-│       └── index.html      # Web UI (single-page app)
-├── scripts/
-│   ├── schema.sql          # Database schema
-│   └── cleanup-db.sh       # Maintenance scripts
-├── docs/
-│   ├── swagger/            # API documentation
-│   └── *.md                # Documentation files
-└── configs/
-    └── nginx.conf          # Nginx configuration
+│   └── worker/       # Background job processing
+├── web/static/       # Frontend files
+├── scripts/          # Database & maintenance
+└── docs/             # Documentation
 ```
 
 ## Building from Source
@@ -138,274 +113,325 @@ tlsscanner-portal/
 ### Scanner CLI
 
 ```bash
-# Build for current platform
-go build -o tlsscanner cmd/scanner/main.go
+# Current platform
+go build -o tlsscanner ./cmd/scanner
 
-# Cross-compile for multiple platforms
-make build-all
-
-# Or manually:
-GOOS=linux GOARCH=amd64 go build -o tlsscanner-linux-amd64 cmd/scanner/main.go
-GOOS=darwin GOARCH=amd64 go build -o tlsscanner-darwin-amd64 cmd/scanner/main.go
-GOOS=windows GOARCH=amd64 go build -o tlsscanner.exe cmd/scanner/main.go
+# Cross-compile
+GOOS=linux GOARCH=amd64 go build -o tlsscanner-linux ./cmd/scanner
+GOOS=darwin GOARCH=amd64 go build -o tlsscanner-mac ./cmd/scanner
+GOOS=windows GOARCH=amd64 go build -o tlsscanner.exe ./cmd/scanner
 ```
 
 ### API Server
 
 ```bash
-# Build API server
-go build -o api cmd/api/main.go
+# Build server
+go build -o api-server ./cmd/api
 
-# Generate Swagger docs
+# Update Swagger docs
 swag init -g cmd/api/main.go -o docs/swagger
 ```
 
-## Running Tests
+### Docker Images
+
+```bash
+# Build all images
+docker compose build
+
+# Build specific service
+docker compose build api
+```
+
+## Key Design Decisions
+
+### SSL Labs Grading
+
+The grading algorithm (`pkg/scanner/scanner.go`) follows SSL Labs methodology:
+
+```go
+// Grade calculation weights
+Protocol Support: 30%
+Key Exchange: 30%
+Cipher Strength: 40%
+
+// Grade capping rules
+TLS 1.0 → Maximum C
+No PFS → Maximum B
+3DES → Maximum B
+RC4 → Automatic F
+```
+
+### STARTTLS Implementation
+
+Port-based automatic protocol detection:
+
+```go
+// pkg/scanner/protocols.go
+var wellKnownPorts = map[int]ServiceInfo{
+    25:  {Protocol: ProtocolSTARTTLS, STARTTLSType: "smtp"},
+    587: {Protocol: ProtocolSTARTTLS, STARTTLSType: "smtp"},
+    143: {Protocol: ProtocolSTARTTLS, STARTTLSType: "imap"},
+    // ...
+}
+```
+
+### Database Schema
+
+Cascading deletes ensure data integrity:
+
+```sql
+-- Main scan table
+CREATE TABLE scans (
+    id UUID PRIMARY KEY,
+    target VARCHAR(255) NOT NULL,
+    grade VARCHAR(10),
+    -- ...
+);
+
+-- Related tables reference scan_id
+CREATE TABLE scan_vulnerabilities (
+    scan_id UUID REFERENCES scans(id) ON DELETE CASCADE,
+    -- ...
+);
+```
+
+## Common Development Tasks
+
+### Adding a New Vulnerability Check
+
+1. Edit `pkg/scanner/scanner.go`:
+```go
+func checkVulnerabilities(result *Result) {
+    // Add your check
+    if hasVulnerability() {
+        result.Vulnerabilities = append(result.Vulnerabilities, Vulnerability{
+            Name:     "New Vulnerability",
+            Severity: "HIGH",
+            CVEs:     []CVE{{ID: "CVE-2024-XXXX", CVSS: 7.5}},
+        })
+    }
+}
+```
+
+2. Add tests in `pkg/scanner/scanner_test.go`
+
+3. Update database schema if needed
+
+### Testing with Custom CAs
+
+For development with internal certificates:
+
+1. **Add test CAs to the custom-ca directory:**
+```bash
+# Copy your test CA certificates
+cp /path/to/test-ca.crt ./custom-ca/
+```
+
+2. **Test with CLI:**
+```bash
+# Build and test
+go build -o tlsscanner ./cmd/scanner
+./tlsscanner -target internal.test.local:443 -ca-path ./custom-ca -v
+```
+
+3. **Test with Docker:**
+```bash
+# CAs are automatically mounted from ./custom-ca
+# Just ensure HOST_CUSTOM_CA_PATH=./custom-ca in .env
+docker compose up -d
+```
+
+4. **Verify CAs are loaded:**
+```bash
+# Check API logs
+docker compose logs api | grep "Loaded custom CA"
+```
+
+### Adding STARTTLS Protocol
+
+1. Define protocol in `pkg/scanner/starttls.go`:
+```go
+func negotiatePostgreSQLStartTLS(conn net.Conn) error {
+    // Implement protocol negotiation
+}
+```
+
+2. Map ports in `pkg/scanner/protocols.go`:
+```go
+5432: {Protocol: ProtocolSTARTTLS, STARTTLSType: "postgresql"},
+```
+
+3. Add to switch statement in scanner
+
+### API Endpoint Addition
+
+1. Add handler in `cmd/api/main.go`:
+```go
+// @Summary New endpoint
+// @Tags scans
+// @Router /api/v1/new-endpoint [get]
+func newEndpointHandler(c *gin.Context) {
+    // Implementation
+}
+```
+
+2. Regenerate Swagger: `swag init -g cmd/api/main.go -o docs/swagger`
+
+## Testing
 
 ### Unit Tests
 
 ```bash
-# Run all tests
+# All tests
 go test ./...
 
-# Run with coverage
+# Specific package
+go test ./pkg/scanner
+
+# With coverage
 go test -cover ./...
 
-# Generate coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
+# Verbose
+go test -v ./...
 ```
 
-### Integration Tests
+### Writing Tests
+
+```go
+func TestGradeCalculation(t *testing.T) {
+    tests := []struct {
+        name     string
+        scores   Scores
+        expected string
+    }{
+        {"Perfect score", Scores{100, 100, 100}, "A+"},
+        {"Good score", Scores{90, 85, 80}, "A"},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            grade := calculateGrade(tt.scores)
+            if grade != tt.expected {
+                t.Errorf("got %s, want %s", grade, tt.expected)
+            }
+        })
+    }
+}
+```
+
+## Environment Variables
+
+Key environment variables for development:
 
 ```bash
-# Run integration tests (requires database)
-go test -tags=integration ./...
+# Database
+POSTGRES_DB=tlsscanner
+POSTGRES_USER=postgres  
+POSTGRES_PASSWORD=changeme
+DATABASE_URL=postgres://postgres:changeme@postgres/tlsscanner?sslmode=disable
+
+# Port Configuration (customize if needed)
+POSTGRES_HOST_PORT=5432
+REDIS_HOST_PORT=6379
+API_HOST_PORT=8000
+WEB_HOST_PORT=3000
+
+# Scanner Settings
+SCAN_TIMEOUT=30
+CONNECT_TIMEOUT=10
+MAX_CONCURRENT_SCANS=10
+WORKER_COUNT=3
+
+# Development Mode
+GIN_MODE=debug  # or "release" for production
+
+# Custom CA Support
+HOST_CUSTOM_CA_PATH=./custom-ca
+SCANNER_VERBOSE=false
+
+# Swagger
+SWAGGER_HOST=localhost:8000
 ```
 
-### Test Specific Packages
-
-```bash
-# Test scanner package
-go test ./pkg/scanner/...
-
-# Test with verbose output
-go test -v ./pkg/scanner/...
-```
-
-## Code Style
-
-### Go Guidelines
-
-1. **Format**: Use `gofmt` (automatically done by most IDEs)
-   ```bash
-   gofmt -w .
-   ```
-
-2. **Linting**: Use `golangci-lint`
-   ```bash
-   golangci-lint run
-   ```
-
-3. **Imports**: Group imports (stdlib, external, internal)
-   ```go
-   import (
-       "fmt"
-       "net/http"
-       
-       "github.com/gin-gonic/gin"
-       
-       "github.com/jphoke/tlsscanner/pkg/scanner"
-   )
-   ```
-
-4. **Error Handling**: Always check errors
-   ```go
-   result, err := scanner.Scan(target)
-   if err != nil {
-       return fmt.Errorf("scan failed: %w", err)
-   }
-   ```
-
-### Commit Messages
-
-Follow conventional commits:
-```
-feat: add STARTTLS support for SMTP
-fix: correct TLS 1.3 forward secrecy detection
-docs: update API documentation
-test: add scanner unit tests
-refactor: simplify grade calculation logic
-```
-
-## Making Changes
-
-### 1. Create a Feature Branch
-
-```bash
-git checkout -b feature/your-feature-name
-```
-
-### 2. Make Your Changes
-
-- Write clean, documented code
-- Add tests for new functionality
-- Update documentation as needed
-
-### 3. Test Your Changes
-
-```bash
-# Run tests
-go test ./...
-
-# Test the scanner
-go run cmd/scanner/main.go -target example.com
-
-# Test the API
-go run cmd/api/main.go
-# Then: curl http://localhost:8080/api/v1/health
-```
-
-### 4. Update Swagger Docs (if API changed)
-
-```bash
-swag init -g cmd/api/main.go -o docs/swagger
-```
+See `.env.example` for all available options.
 
 ## Debugging
 
-### API Server Debugging
-
-1. **Enable Debug Logging**
-   ```bash
-   export GIN_MODE=debug
-   go run cmd/api/main.go
-   ```
-
-2. **Using Delve Debugger**
-   ```bash
-   dlv debug cmd/api/main.go
-   ```
-
-3. **VS Code Debug Configuration**
-   ```json
-   {
-       "version": "0.2.0",
-       "configurations": [
-           {
-               "name": "Debug API",
-               "type": "go",
-               "request": "launch",
-               "mode": "debug",
-               "program": "${workspaceFolder}/cmd/api/main.go"
-           }
-       ]
-   }
-   ```
-
-### Scanner Debugging
+### Enable Debug Logging
 
 ```bash
-# Run with verbose output
-go run cmd/scanner/main.go -target example.com -verbose
+# API server
+export GIN_MODE=debug
+go run cmd/api/main.go
 
-# Debug with delve
-dlv debug cmd/scanner/main.go -- -target example.com
+# Scanner
+go run cmd/scanner/main.go -target example.com -v
 ```
 
 ### Database Queries
 
 ```bash
 # Connect to database
-docker exec -it tlsscanner-postgres psql -U tlsscanner
+docker compose exec postgres psql -U postgres tlsscanner
 
-# Check recent scans
-SELECT id, target, grade, created_at FROM scans ORDER BY created_at DESC LIMIT 10;
+# Useful queries
+SELECT target, grade, created_at FROM scans ORDER BY created_at DESC LIMIT 10;
+SELECT COUNT(*) as total, grade FROM scans GROUP BY grade;
 ```
 
-## Contributing
+### Performance Profiling
 
-### Before Submitting
+```go
+import _ "net/http/pprof"
 
-1. **Run Tests**: Ensure all tests pass
-2. **Check Formatting**: Run `gofmt`
-3. **Update Docs**: Document new features
-4. **Test Manually**: Verify functionality works
+// In main()
+go func() {
+    log.Println(http.ListenAndServe("localhost:6060", nil))
+}()
 
-### Pull Request Process
+// Profile: go tool pprof http://localhost:6060/debug/pprof/profile
+```
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to your fork
-5. Create a Pull Request with:
-   - Clear description of changes
-   - Any breaking changes noted
-   - Tests for new functionality
-   - Updated documentation
+## Code Style
 
-### Code Review Guidelines
-
-- Be responsive to feedback
-- Keep changes focused and atomic
-- Write clear commit messages
-- Ensure CI passes
-
-## Common Development Tasks
-
-### Adding a New API Endpoint
-
-1. Define the handler in `cmd/api/main.go`
-2. Add Swagger annotations
-3. Implement business logic
-4. Add tests
-5. Regenerate Swagger docs
-
-### Adding Scanner Features
-
-1. Modify `pkg/scanner/scanner.go`
-2. Add tests in `pkg/scanner/scanner_test.go`
-3. Update CLI in `cmd/scanner/main.go`
-4. Document new features
-
-### Modifying Database Schema
-
-1. Update `scripts/schema.sql`
-2. Create migration script
-3. Update models in `pkg/models/`
-4. Test with fresh database
+- Use `gofmt` for formatting
+- Follow [Effective Go](https://go.dev/doc/effective_go)
+- Write clear, self-documenting code
+- Handle errors explicitly
+- Add tests for new features
 
 ## Troubleshooting
 
-### Common Issues
+### Port Conflicts
 
-1. **Port Already in Use**
-   ```bash
-   # Option 1: Find and kill process
-   lsof -i :8080  # Find process using port
-   kill -9 <PID>  # Kill the process
-   
-   # Option 2: Use different ports in .env
-   # Edit .env file:
-   # API_HOST_PORT=8001
-   # WEB_HOST_PORT=3001
-   # POSTGRES_HOST_PORT=5433
-   # REDIS_HOST_PORT=6380
-   ```
+Edit `.env` to use different ports:
+```bash
+POSTGRES_HOST_PORT=5433
+API_HOST_PORT=8001
+```
 
-2. **Database Connection Failed**
-   - Check PostgreSQL is running
-   - Verify credentials in .env
-   - Check connection string
+### Module Issues
 
-3. **Module Dependencies**
-   ```bash
-   go mod tidy
-   go mod download
-   ```
+```bash
+go mod tidy
+go mod download
+go clean -modcache  # If corrupted
+```
 
-### Getting Help
+### Docker Issues
 
-- Check existing [Issues](https://github.com/jphoke/tlsscanner/issues)
-- Join [Discussions](https://github.com/jphoke/tlsscanner/discussions)
-- Read the [Wiki](https://github.com/jphoke/tlsscanner/wiki)
+```bash
+# Full reset
+docker compose down -v
+docker compose up -d --build
+
+# View logs
+docker compose logs -f api
+```
+
+## Resources
+
+- [Go Documentation](https://go.dev/doc/)
+- [Gin Web Framework](https://gin-gonic.com/docs/)
+- [TLS 1.3 RFC](https://datatracker.ietf.org/doc/html/rfc8446)
+- [SSL Labs Grading](https://github.com/ssllabs/research/wiki/SSL-Server-Rating-Guide)

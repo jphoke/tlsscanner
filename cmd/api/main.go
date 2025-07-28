@@ -697,6 +697,71 @@ func (s *Server) getStats(c *gin.Context) {
 		WHERE status = 'pending'
 	`).Scan(&stats.QueueLength)
 	
+	// Calculate average grade
+	var validGrades []string
+	rows, err := s.db.Query(`
+		SELECT grade FROM scans 
+		WHERE status = 'completed' 
+		AND grade IS NOT NULL 
+		AND grade NOT IN ('', '-', 'N/A')
+	`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var grade string
+			if err := rows.Scan(&grade); err == nil {
+				validGrades = append(validGrades, grade)
+			}
+		}
+	}
+	
+	if len(validGrades) > 0 {
+		// Calculate average by converting grades to scores and back
+		totalScore := 0
+		for _, grade := range validGrades {
+			switch grade {
+			case "A+":
+				totalScore += 95
+			case "A":
+				totalScore += 85
+			case "B":
+				totalScore += 75
+			case "C":
+				totalScore += 65
+			case "D":
+				totalScore += 55
+			case "E":
+				totalScore += 45
+			case "F":
+				totalScore += 35
+			case "M":
+				totalScore += 30  // Mismatch gets low score
+			}
+		}
+		
+		avgScore := totalScore / len(validGrades)
+		
+		// Convert average score back to grade
+		switch {
+		case avgScore >= 90:
+			stats.AverageGrade = "A+"
+		case avgScore >= 80:
+			stats.AverageGrade = "A"
+		case avgScore >= 70:
+			stats.AverageGrade = "B"
+		case avgScore >= 60:
+			stats.AverageGrade = "C"
+		case avgScore >= 50:
+			stats.AverageGrade = "D"
+		case avgScore >= 40:
+			stats.AverageGrade = "E"
+		default:
+			stats.AverageGrade = "F"
+		}
+	} else {
+		stats.AverageGrade = "N/A"
+	}
+	
 	c.JSON(200, stats)
 }
 

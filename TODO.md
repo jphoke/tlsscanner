@@ -78,6 +78,15 @@
 - [ ] XMPP/Jabber (port 5222)
 - [ ] FTP with AUTH TLS (port 21)
 
+### Environment Configuration
+- [x] Configurable host ports via environment variables
+  - [x] POSTGRES_HOST_PORT (default: 5432)
+  - [x] REDIS_HOST_PORT (default: 6379)
+  - [x] API_HOST_PORT (default: 8000)
+  - [x] WEB_HOST_PORT (default: 3000)
+  - [x] Avoid conflicts with existing services
+  - [x] Updated .env.example with documentation
+
 ### Deployment & Operations
 - [ ] Production environment configuration
 - [ ] SSL/TLS certificates for portal itself

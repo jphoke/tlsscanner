@@ -367,10 +367,10 @@ trivy image tlsscanner-api:latest
 
 ```bash
 # Basic health check
-curl http://localhost:8000/api/v1/health
+curl http://localhost:${API_HOST_PORT:-8000}/api/v1/health
 
 # Detailed health with dependencies
-curl http://localhost:8000/api/v1/health/ready
+curl http://localhost:${API_HOST_PORT:-8000}/api/v1/health/ready
 ```
 
 #### Automated Health Monitoring
@@ -379,7 +379,7 @@ curl http://localhost:8000/api/v1/health/ready
 #!/bin/bash
 # /opt/tlsscanner/health-check.sh
 
-API_URL="http://localhost:8000/api/v1/health"
+API_URL="http://localhost:${API_HOST_PORT:-8000}/api/v1/health"
 ALERT_EMAIL="admin@example.com"
 
 if ! curl -f -s $API_URL > /dev/null; then

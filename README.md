@@ -20,6 +20,10 @@ A blazing-fast web portal for comprehensive TLS/SSL security testing. Get detail
 git clone https://github.com/jphoke/tlsscanner
 cd tlsscanner/tlsscanner-portal
 
+# Copy environment template
+cp .env.example .env
+# Edit .env if you need custom ports (see Port Configuration below)
+
 # Start everything with Docker
 docker compose up -d --build
 
@@ -108,6 +112,24 @@ The scanner automatically handles various protocols and services:
 - **Grade Degradation Tracking** - Shows specific issues impacting your grade
 - **Remediation Guidance** - Actionable steps to improve security
 - **Forward Secrecy Detection** - Including proper TLS 1.3 support
+
+## 🔧 Port Configuration
+
+If you have services already running on the default ports, you can customize them in your `.env` file:
+
+```bash
+# Default ports (change if you have conflicts)
+POSTGRES_HOST_PORT=5432    # PostgreSQL
+REDIS_HOST_PORT=6379       # Redis
+API_HOST_PORT=8000         # API server
+WEB_HOST_PORT=3000         # Web UI
+```
+
+For example, if PostgreSQL is already running on 5432:
+```bash
+# In your .env file
+POSTGRES_HOST_PORT=5433    # Use a different port
+```
 
 ## 📚 Documentation
 

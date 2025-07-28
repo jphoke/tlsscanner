@@ -195,6 +195,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     restart: unless-stopped
 
   redis:
@@ -202,6 +204,8 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
     restart: unless-stopped
 
 volumes:

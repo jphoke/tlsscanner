@@ -48,6 +48,12 @@ cp .env.example .env
 
 # Edit .env with your settings
 # Default values work for local development
+
+# If you have port conflicts, adjust in .env:
+# POSTGRES_HOST_PORT=5433  # If 5432 is in use
+# REDIS_HOST_PORT=6380     # If 6379 is in use
+# API_HOST_PORT=8001       # If 8000 is in use
+# WEB_HOST_PORT=3001       # If 3000 is in use
 ```
 
 ### 3. Install Go Dependencies
@@ -76,19 +82,20 @@ docker compose up -d --build
 
 ```bash
 # Start PostgreSQL and Redis (using Docker)
-docker run -d --name postgres -p 5432:5432 \
+# Use custom ports if defaults are in use
+docker run -d --name postgres -p ${POSTGRES_HOST_PORT:-5432}:5432 \
   -e POSTGRES_PASSWORD=password postgres:15
 
-docker run -d --name redis -p 6379:6379 redis:7
+docker run -d --name redis -p ${REDIS_HOST_PORT:-6379}:6379 redis:7
 
 # Run database migrations
-psql -h localhost -U postgres -f scripts/schema.sql
+psql -h localhost -U postgres -p ${POSTGRES_HOST_PORT:-5432} -f scripts/schema.sql
 
 # Start the API server
-go run cmd/api/main.go
+PORT=${API_HOST_PORT:-8000} go run cmd/api/main.go
 
 # In another terminal, serve the web UI
-python3 -m http.server 3000 -d web/static
+python3 -m http.server ${WEB_HOST_PORT:-3000} -d web/static
 ```
 
 ## Project Structure
@@ -374,8 +381,16 @@ SELECT id, target, grade, created_at FROM scans ORDER BY created_at DESC LIMIT 1
 
 1. **Port Already in Use**
    ```bash
+   # Option 1: Find and kill process
    lsof -i :8080  # Find process using port
    kill -9 <PID>  # Kill the process
+   
+   # Option 2: Use different ports in .env
+   # Edit .env file:
+   # API_HOST_PORT=8001
+   # WEB_HOST_PORT=3001
+   # POSTGRES_HOST_PORT=5433
+   # REDIS_HOST_PORT=6380
    ```
 
 2. **Database Connection Failed**

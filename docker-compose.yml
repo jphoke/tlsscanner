@@ -30,6 +30,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        SWAGGER_HOST: ${SWAGGER_HOST:-localhost:8000}
     environment:
       DATABASE_URL: postgres://postgres:password@postgres/tlsscanner?sslmode=disable
       REDIS_URL: redis:6379

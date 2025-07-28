@@ -9,9 +9,13 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -92,6 +96,91 @@ var upgrader = websocket.Upgrader{
 		// In production, implement proper origin checking
 		return true
 	},
+}
+
+// validateTarget validates and sanitizes the scan target
+func validateTarget(target string) (string, int, error) {
+	// Remove leading/trailing whitespace
+	target = strings.TrimSpace(target)
+	
+	// Check if empty
+	if target == "" {
+		return "", 0, fmt.Errorf("target cannot be empty")
+	}
+	
+	// Remove common URL prefixes and trailing slashes
+	target = strings.TrimPrefix(target, "https://")
+	target = strings.TrimPrefix(target, "http://")
+	target = strings.TrimPrefix(target, "ssl://")
+	target = strings.TrimPrefix(target, "tls://")
+	target = strings.TrimSuffix(target, "/")
+	
+	// Check for URL path (not allowed)
+	if strings.Contains(target, "/") {
+		return "", 0, fmt.Errorf("target cannot contain URL paths")
+	}
+	
+	// Split host and port
+	host, portStr, err := net.SplitHostPort(target)
+	if err != nil {
+		// No port specified, use default
+		host = target
+		portStr = "443"
+	}
+	
+	// Validate port
+	var port int
+	if portStr != "" {
+		_, err := fmt.Sscanf(portStr, "%d", &port)
+		if err != nil || port < 1 || port > 65535 {
+			return "", 0, fmt.Errorf("invalid port number")
+		}
+	} else {
+		port = 443
+	}
+	
+	// Validate hostname/IP
+	if !isValidHostname(host) && !isValidIP(host) {
+		return "", 0, fmt.Errorf("invalid hostname or IP address")
+	}
+	
+	// Return cleaned target with port
+	if port != 443 {
+		return fmt.Sprintf("%s:%d", host, port), port, nil
+	}
+	return host, port, nil
+}
+
+// isValidHostname checks if the string is a valid hostname
+func isValidHostname(hostname string) bool {
+	if len(hostname) > 253 {
+		return false
+	}
+	
+	// Valid hostname regex
+	hostnameRegex := regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$`)
+	return hostnameRegex.MatchString(hostname)
+}
+
+// isValidIP checks if the string is a valid IP address
+func isValidIP(ip string) bool {
+	return net.ParseIP(ip) != nil
+}
+
+// validateComments validates the comments field
+func validateComments(comments string) (string, error) {
+	// Trim whitespace
+	comments = strings.TrimSpace(comments)
+	
+	// Check length
+	if len(comments) > 100 {
+		return "", fmt.Errorf("comments cannot exceed 100 characters")
+	}
+	
+	// Remove any control characters
+	comments = regexp.MustCompile(`[\x00-\x1F\x7F]`).ReplaceAllString(comments, "")
+	
+	return comments, nil
 }
 
 func main() {
@@ -188,13 +277,27 @@ func (s *Server) createScan(c *gin.Context) {
 		return
 	}
 	
+	// Validate and sanitize target
+	cleanedTarget, port, err := validateTarget(req.Target)
+	if err != nil {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("Invalid target: %s", err.Error())})
+		return
+	}
+	
+	// Validate and sanitize comments
+	cleanedComments, err := validateComments(req.Comments)
+	if err != nil {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("Invalid comments: %s", err.Error())})
+		return
+	}
+	
 	// Create scan record
 	var scanID string
-	err := s.db.QueryRow(`
+	err = s.db.QueryRow(`
 		INSERT INTO scans (target, port, status, comments)
 		VALUES ($1, $2, 'queued', $3)
 		RETURNING id
-	`, req.Target, "443", req.Comments).Scan(&scanID)
+	`, cleanedTarget, fmt.Sprintf("%d", port), cleanedComments).Scan(&scanID)
 	
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to create scan"})
@@ -210,7 +313,7 @@ func (s *Server) createScan(c *gin.Context) {
 	_, err = s.db.Exec(`
 		INSERT INTO scan_queue (target, priority, scan_id)
 		VALUES ($1, $2, $3)
-	`, req.Target, priority, scanID)
+	`, cleanedTarget, priority, scanID)
 	
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to queue scan"})

@@ -47,6 +47,19 @@
             margin-bottom: 20px;
         }
         
+        .input-hint {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        .input-error {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+        
         label {
             display: block;
             margin-bottom: 5px;
@@ -396,10 +409,14 @@
                 <div class="form-group">
                     <label for="target">Target (hostname or IP:port)</label>
                     <input type="text" id="target" name="target" placeholder="example.com or example.com:8443" required>
+                    <div class="input-hint">Enter hostname, IP address, or add :port for non-standard ports</div>
+                    <div class="input-error" id="targetError"></div>
                 </div>
                 <div class="form-group">
                     <label for="comments">Comments (optional, max 100 chars)</label>
                     <input type="text" id="comments" name="comments" placeholder="Change ticket #, test purpose, etc." maxlength="100">
+                    <div class="input-hint">Track scans with ticket numbers or purpose</div>
+                    <div class="input-error" id="commentsError"></div>
                 </div>
                 <button type="submit" id="scanButton">Start Scan</button>
             </form>
@@ -425,23 +442,148 @@
         // Load recent scans on page load
         loadRecentScans();
         
+        // Real-time validation
+        document.getElementById('target').addEventListener('blur', function() {
+            const validation = validateTarget(this.value);
+            const errorDiv = document.getElementById('targetError');
+            
+            if (!validation.valid && this.value.trim() !== '') {
+                errorDiv.textContent = validation.error;
+                errorDiv.style.display = 'block';
+                this.style.borderColor = '#e74c3c';
+            } else {
+                errorDiv.style.display = 'none';
+                this.style.borderColor = '';
+            }
+        });
+        
+        document.getElementById('comments').addEventListener('input', function() {
+            const remaining = 100 - this.value.length;
+            const errorDiv = document.getElementById('commentsError');
+            
+            if (remaining < 0) {
+                errorDiv.textContent = `${Math.abs(remaining)} characters over limit`;
+                errorDiv.style.display = 'block';
+                this.style.borderColor = '#e74c3c';
+            } else if (remaining < 20) {
+                errorDiv.textContent = `${remaining} characters remaining`;
+                errorDiv.style.display = 'block';
+                errorDiv.style.color = '#f39c12';
+                this.style.borderColor = '#f39c12';
+            } else {
+                errorDiv.style.display = 'none';
+                this.style.borderColor = '';
+            }
+        });
+        
+        // Client-side validation functions
+        function validateTarget(target) {
+            // Trim whitespace
+            target = target.trim();
+            
+            // Check if empty
+            if (!target) {
+                return { valid: false, error: 'Target cannot be empty' };
+            }
+            
+            // Remove common URL prefixes and trailing slashes
+            target = target.replace(/^(https?|ssl|tls):\/\//i, '');
+            target = target.replace(/\/+$/, '');
+            
+            // Check for URL paths
+            if (target.includes('/')) {
+                return { valid: false, error: 'Please enter only hostname or IP, not a full URL' };
+            }
+            
+            // Basic hostname/IP validation
+            const hostnameRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/;
+            const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+            const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
+            
+            // Check if it has a port
+            const parts = target.split(':');
+            if (parts.length > 2) {
+                // Might be IPv6 with port or invalid
+                if (target.startsWith('[') && target.includes(']:')) {
+                    // IPv6 with port like [::1]:443
+                    return { valid: true, cleaned: target };
+                }
+                // Otherwise might be IPv6 without port
+                if (ipv6Regex.test(target)) {
+                    return { valid: true, cleaned: target };
+                }
+                return { valid: false, error: 'Invalid hostname or IP address format' };
+            }
+            
+            if (parts.length === 2) {
+                const host = parts[0];
+                const port = parts[1];
+                
+                // Validate port
+                const portNum = parseInt(port);
+                if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                    return { valid: false, error: 'Invalid port number (must be 1-65535)' };
+                }
+                
+                // Validate host part
+                if (!hostnameRegex.test(host) && !ipRegex.test(host)) {
+                    return { valid: false, error: 'Invalid hostname or IP address' };
+                }
+                
+                return { valid: true, cleaned: target };
+            }
+            
+            // No port specified
+            if (!hostnameRegex.test(target) && !ipRegex.test(target) && !ipv6Regex.test(target)) {
+                return { valid: false, error: 'Invalid hostname or IP address' };
+            }
+            
+            return { valid: true, cleaned: target };
+        }
+        
+        function validateComments(comments) {
+            if (comments.length > 100) {
+                return { valid: false, error: 'Comments cannot exceed 100 characters' };
+            }
+            return { valid: true, cleaned: comments.trim() };
+        }
+        
         document.getElementById('scanForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const target = document.getElementById('target').value;
-            const comments = document.getElementById('comments').value;
+            const targetInput = document.getElementById('target');
+            const commentsInput = document.getElementById('comments');
             const button = document.getElementById('scanButton');
             const results = document.getElementById('results');
+            
+            // Validate target
+            const targetValidation = validateTarget(targetInput.value);
+            if (!targetValidation.valid) {
+                alert(targetValidation.error);
+                targetInput.focus();
+                return;
+            }
+            
+            // Validate comments
+            const commentsValidation = validateComments(commentsInput.value);
+            if (!commentsValidation.valid) {
+                alert(commentsValidation.error);
+                commentsInput.focus();
+                return;
+            }
             
             button.disabled = true;
             button.textContent = 'Scanning...';
             
             try {
-                // Submit scan
+                // Submit scan with validated values
                 const response = await fetch(`${API_BASE}/scans`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target, comments })
+                    body: JSON.stringify({ 
+                        target: targetValidation.cleaned,
+                        comments: commentsValidation.cleaned
+                    })
                 });
                 
                 if (!response.ok) {
@@ -456,7 +598,7 @@
                 results.innerHTML = `
                     <div class="loading">
                         <div class="spinner"></div>
-                        <p>Scanning ${target}...</p>
+                        <p>Scanning ${targetValidation.cleaned}...</p>
                     </div>
                 `;
                 

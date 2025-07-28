@@ -4,6 +4,34 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-07-28
+
+### Added - Vulnerability Detection
+- **Comprehensive TLS Vulnerability Scanning**
+  - BEAST Attack detection (CVE-2011-3389) for TLS 1.0 with CBC ciphers
+  - SWEET32 detection (CVE-2016-2183, CVE-2016-6329) for 3DES vulnerabilities
+  - FREAK Attack detection (CVE-2015-0204) for export-grade ciphers
+  - RC4 cipher vulnerability detection (CVE-2013-2566, CVE-2015-2808)
+  - Anonymous cipher suite detection (no authentication)
+  - Weak DH parameters warning for potential Logjam vulnerability
+
+- **CVE Tracking Integration**
+  - Each vulnerability includes relevant CVE identifiers
+  - CVSS scores displayed for risk assessment
+  - Database schema updated with JSONB CVE data column
+  - API returns full vulnerability details with CVE information
+
+- **Enhanced UI Vulnerability Display**
+  - Dedicated "Vulnerabilities Detected" section with severity icons
+  - Critical/High vulnerabilities shown in red (🔴)
+  - Medium vulnerabilities shown in orange (🟠)
+  - Low vulnerabilities shown in yellow (🟡)
+  - CVE details shown inline with vulnerability descriptions
+
+### Changed
+- Scanner now performs deeper protocol and cipher analysis for vulnerability detection
+- Web UI displays vulnerabilities prominently after Supported Protocols section
+
 ## [1.0.0] - 2025-07-26
 
 ### Added - 2025-07-26 Morning Session

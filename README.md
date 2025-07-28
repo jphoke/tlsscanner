@@ -8,6 +8,7 @@ A blazing-fast web portal for comprehensive TLS/SSL security testing. Get detail
 - **🏆 SSL Labs Grading** - Industry-standard scoring with proper grade capping
 - **📧 Automatic STARTTLS** - Zero-config mail server scanning (SMTP, IMAP, POP3)
 - **🔍 Comprehensive Analysis** - Protocols, ciphers, certificates, vulnerabilities
+- **☣️ Vulnerability Detection** - BEAST, SWEET32, FREAK, RC4, and more with CVE tracking
 - **🌐 Modern Web UI** - Real-time updates, scan history, actionable insights
 - **🔌 RESTful API** - Full Swagger documentation for easy integration
 - **🖥️ Standalone CLI** - Use without web portal for scripts and automation
@@ -108,7 +109,13 @@ The scanner automatically handles various protocols and services:
 - **Custom services** on non-standard ports
 
 ### Security Analysis
-- **Vulnerability Detection** - Identifies weak protocols and ciphers
+- **Vulnerability Detection** - Comprehensive scanning for known TLS vulnerabilities:
+  - BEAST Attack (CVE-2011-3389) - TLS 1.0 with CBC ciphers
+  - SWEET32 (CVE-2016-2183) - 3DES birthday attacks
+  - FREAK (CVE-2015-0204) - Export-grade cipher suites
+  - RC4 weaknesses (CVE-2013-2566, CVE-2015-2808)
+  - Anonymous cipher suites and weak DH parameters
+- **CVE Tracking** - Each vulnerability includes relevant CVE IDs and CVSS scores
 - **Grade Degradation Tracking** - Shows specific issues impacting your grade
 - **Remediation Guidance** - Actionable steps to improve security
 - **Forward Secrecy Detection** - Including proper TLS 1.3 support

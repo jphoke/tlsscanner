@@ -96,10 +96,16 @@ type CertificateInfo struct {
 }
 
 type VulnerabilityInfo struct {
-	Name        string `json:"name"`
-	Severity    string `json:"severity"`
-	Description string `json:"description"`
-	Affected    bool   `json:"affected"`
+	Name        string   `json:"name"`
+	Severity    string   `json:"severity"`
+	Description string   `json:"description"`
+	Affected    bool     `json:"affected"`
+	CVEs        []CVEInfo `json:"cves,omitempty"`
+}
+
+type CVEInfo struct {
+	ID    string  `json:"id"`
+	CVSS  float64 `json:"cvss"`
 }
 
 func New(config Config) *Scanner {
@@ -556,38 +562,206 @@ func (s *Scanner) validateCertificateChain(cert *x509.Certificate, chain []*x509
 func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []VulnerabilityInfo {
 	vulns := []VulnerabilityInfo{}
 	
-	// Check for weak protocols
+	// BEAST - TLS 1.0 with CBC ciphers
+	hasTLS10 := false
 	for _, proto := range result.SupportedProtocols {
-		if proto.Version < tls.VersionTLS12 && proto.Enabled {
-			vulns = append(vulns, VulnerabilityInfo{
-				Name:        fmt.Sprintf("%s Support", proto.Name),
-				Severity:    "MEDIUM",
-				Description: fmt.Sprintf("Server supports %s which is considered weak", proto.Name),
-				Affected:    true,
-			})
+		if proto.Enabled && proto.Version == tls.VersionTLS10 {
+			hasTLS10 = true
+			break
 		}
 	}
 	
-	// Check for weak ciphers
-	weakCipherCount := 0
+	if hasTLS10 {
+		// Check for CBC ciphers with TLS 1.0
+		for _, cipher := range result.CipherSuites {
+			if cipher.Protocol == "TLS 1.0" && strings.Contains(cipher.Name, "CBC") {
+				vulns = append(vulns, VulnerabilityInfo{
+					Name:        "BEAST Attack",
+					Severity:    "HIGH",
+					Description: "TLS 1.0 with CBC mode ciphers is vulnerable to BEAST attack - allows decryption of HTTPS requests",
+					Affected:    true,
+					CVEs: []CVEInfo{
+						{ID: "CVE-2011-3389", CVSS: 5.9},
+					},
+				})
+				break
+			}
+		}
+	}
+	
+	// SWEET32 - 3DES vulnerability
 	for _, cipher := range result.CipherSuites {
-		if cipher.Strength == "WEAK" || cipher.Strength == "INSECURE" {
-			weakCipherCount++
+		if strings.Contains(cipher.Name, "3DES") {
+			vulns = append(vulns, VulnerabilityInfo{
+				Name:        "SWEET32 Birthday Attack",
+				Severity:    "HIGH",
+				Description: "3DES cipher suites are vulnerable to SWEET32 birthday attacks - can decrypt traffic after ~32GB of data",
+				Affected:    true,
+				CVEs: []CVEInfo{
+					{ID: "CVE-2016-2183", CVSS: 7.5},
+					{ID: "CVE-2016-6329", CVSS: 5.3},
+				},
+			})
+			break
 		}
 	}
 	
-	if weakCipherCount > 0 {
+	// FREAK - Export cipher suites
+	for _, cipher := range result.CipherSuites {
+		if strings.Contains(cipher.Name, "EXPORT") {
+			vulns = append(vulns, VulnerabilityInfo{
+				Name:        "FREAK Attack",
+				Severity:    "CRITICAL",
+				Description: "Export-grade cipher suites allow FREAK attack - enables man-in-the-middle attacks with 512-bit RSA",
+				Affected:    true,
+				CVEs: []CVEInfo{
+					{ID: "CVE-2015-0204", CVSS: 7.5},
+				},
+			})
+			break
+		}
+	}
+	
+	// RC4 vulnerabilities
+	for _, cipher := range result.CipherSuites {
+		if strings.Contains(cipher.Name, "RC4") {
+			vulns = append(vulns, VulnerabilityInfo{
+				Name:        "RC4 Cipher Suites",
+				Severity:    "HIGH",
+				Description: "RC4 cipher suites have multiple vulnerabilities and are considered cryptographically broken",
+				Affected:    true,
+				CVEs: []CVEInfo{
+					{ID: "CVE-2013-2566", CVSS: 5.3},
+					{ID: "CVE-2015-2808", CVSS: 5.3},
+				},
+			})
+			break
+		}
+	}
+	
+	// Anonymous cipher suites
+	for _, cipher := range result.CipherSuites {
+		if strings.Contains(cipher.Name, "anon") || strings.Contains(cipher.Name, "NULL") {
+			vulns = append(vulns, VulnerabilityInfo{
+				Name:        "Anonymous Cipher Suites",
+				Severity:    "CRITICAL",
+				Description: "Anonymous cipher suites provide no authentication - trivial man-in-the-middle attacks possible",
+				Affected:    true,
+				// No specific CVE - this is a fundamental protocol weakness
+			})
+			break
+		}
+	}
+	
+	// Weak DH parameters warning (partial Logjam check)
+	hasDHE := false
+	for _, cipher := range result.CipherSuites {
+		if strings.Contains(cipher.Name, "DHE") && !strings.Contains(cipher.Name, "ECDHE") {
+			hasDHE = true
+			break
+		}
+	}
+	
+	if hasDHE {
 		vulns = append(vulns, VulnerabilityInfo{
-			Name:        "Weak Ciphers",
-			Severity:    "HIGH",
-			Description: fmt.Sprintf("Server supports %d weak cipher suites", weakCipherCount),
+			Name:        "Weak DH Parameters (Logjam Risk)",
+			Severity:    "MEDIUM",
+			Description: "DHE cipher suites may use weak DH parameters (< 2048 bits) - potentially vulnerable to Logjam attack",
 			Affected:    true,
+			CVEs: []CVEInfo{
+				{ID: "CVE-2015-4000", CVSS: 3.7},
+			},
 		})
 	}
 	
-	// More vulnerability checks would go here (Heartbleed, POODLE, etc.)
+	// Deprecated protocols (TLS 1.0/1.1)
+	deprecatedProtos := []string{}
+	for _, proto := range result.SupportedProtocols {
+		if proto.Enabled && (proto.Version == tls.VersionTLS10 || proto.Version == tls.VersionTLS11) {
+			deprecatedProtos = append(deprecatedProtos, proto.Name)
+		}
+	}
+	
+	if len(deprecatedProtos) > 0 {
+		// Build CVE list based on which protocols are enabled
+		cves := []CVEInfo{}
+		for _, proto := range deprecatedProtos {
+			if proto == "TLS 1.0" {
+				// TLS 1.0 has many vulnerabilities
+				cves = append(cves, CVEInfo{ID: "CVE-2011-3389", CVSS: 5.9}) // BEAST
+				cves = append(cves, CVEInfo{ID: "CVE-2014-3566", CVSS: 4.3}) // POODLE variant
+				cves = append(cves, CVEInfo{ID: "CVE-2015-0204", CVSS: 7.5}) // FREAK
+				cves = append(cves, CVEInfo{ID: "CVE-2015-4000", CVSS: 3.7}) // Logjam
+				cves = append(cves, CVEInfo{ID: "CVE-2016-2107", CVSS: 5.9}) // Padding oracle
+			}
+		}
+		
+		// Build description based on CVE count
+		desc := fmt.Sprintf("Deprecated protocols enabled: %s - should be disabled for PCI compliance", strings.Join(deprecatedProtos, ", "))
+		if len(cves) > 5 {
+			// Show summary for many CVEs
+			desc = fmt.Sprintf("%s. Over %d CVEs affect these protocols, highest CVSS: %.1f", desc, len(cves), getHighestCVSS(cves))
+			// Keep only the highest scoring CVEs
+			cves = getTopCVEs(cves, 5)
+		}
+		
+		vulns = append(vulns, VulnerabilityInfo{
+			Name:        "Deprecated TLS Versions",
+			Severity:    "MEDIUM",
+			Description: desc,
+			Affected:    true,
+			CVEs:        cves,
+		})
+	}
+	
+	// No Forward Secrecy
+	hasForwardSecrecy := false
+	for _, cipher := range result.CipherSuites {
+		if cipher.Forward {
+			hasForwardSecrecy = true
+			break
+		}
+	}
+	
+	if !hasForwardSecrecy && len(result.CipherSuites) > 0 {
+		vulns = append(vulns, VulnerabilityInfo{
+			Name:        "No Forward Secrecy",
+			Severity:    "LOW",
+			Description: "No cipher suites support forward secrecy - past sessions could be decrypted if private key is compromised in the future",
+			Affected:    true,
+			// No CVE - this is a cryptographic property, not a vulnerability
+		})
+	}
 	
 	return vulns
+}
+
+// getHighestCVSS returns the highest CVSS score from a list of CVEs
+func getHighestCVSS(cves []CVEInfo) float64 {
+	highest := 0.0
+	for _, cve := range cves {
+		if cve.CVSS > highest {
+			highest = cve.CVSS
+		}
+	}
+	return highest
+}
+
+// getTopCVEs returns the top N CVEs by CVSS score
+func getTopCVEs(cves []CVEInfo, n int) []CVEInfo {
+	// Simple sort by CVSS score (descending)
+	for i := 0; i < len(cves); i++ {
+		for j := i + 1; j < len(cves); j++ {
+			if cves[j].CVSS > cves[i].CVSS {
+				cves[i], cves[j] = cves[j], cves[i]
+			}
+		}
+	}
+	
+	if len(cves) <= n {
+		return cves
+	}
+	return cves[:n]
 }
 
 func parseTarget(target string) (host, port string, err error) {

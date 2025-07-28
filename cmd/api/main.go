@@ -464,7 +464,8 @@ func (s *Server) getScan(c *gin.Context) {
 	// Get vulnerabilities
 	vulnerabilities := []gin.H{}
 	vulnRows, err := s.db.Query(`
-		SELECT vulnerability_name, severity, description, affected
+		SELECT vulnerability_name, severity, description, affected, 
+		       COALESCE(cve_data, '[]'::jsonb) as cve_data
 		FROM scan_vulnerabilities
 		WHERE scan_id = $1
 		ORDER BY severity
@@ -474,13 +475,22 @@ func (s *Server) getScan(c *gin.Context) {
 		for vulnRows.Next() {
 			var name, severity, description string
 			var affected bool
-			if err := vulnRows.Scan(&name, &severity, &description, &affected); err == nil {
-				vulnerabilities = append(vulnerabilities, gin.H{
+			var cveDataJSON []byte
+			if err := vulnRows.Scan(&name, &severity, &description, &affected, &cveDataJSON); err == nil {
+				vuln := gin.H{
 					"name":        name,
 					"severity":    severity,
 					"description": description,
 					"affected":    affected,
-				})
+				}
+				
+				// Parse CVE data
+				var cves []interface{}
+				if err := json.Unmarshal(cveDataJSON, &cves); err == nil && len(cves) > 0 {
+					vuln["cves"] = cves
+				}
+				
+				vulnerabilities = append(vulnerabilities, vuln)
 			}
 		}
 	}
@@ -909,10 +919,13 @@ func (s *Server) worker(id int) {
 			
 			// Save vulnerabilities
 			for _, vuln := range result.Vulnerabilities {
+				// Convert CVEs to JSON
+				cveJSON, _ := json.Marshal(vuln.CVEs)
+				
 				s.db.Exec(`
-					INSERT INTO scan_vulnerabilities (scan_id, vulnerability_name, severity, description, affected)
-					VALUES ($1, $2, $3, $4, $5)
-				`, scanID, vuln.Name, vuln.Severity, vuln.Description, vuln.Affected)
+					INSERT INTO scan_vulnerabilities (scan_id, vulnerability_name, severity, description, affected, cve_data)
+					VALUES ($1, $2, $3, $4, $5, $6)
+				`, scanID, vuln.Name, vuln.Severity, vuln.Description, vuln.Affected, cveJSON)
 			}
 			
 			// Save grade degradations

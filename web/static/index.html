@@ -521,17 +521,40 @@
             }
             
             // Vulnerabilities
-            if (data.vulnerabilities && data.vulnerabilities.length > 0) {
+            if (result.vulnerabilities && result.vulnerabilities.length > 0) {
                 html += `
                     <div class="section">
-                        <h3>🔴 Vulnerabilities Detected</h3>
+                        <h3>☣️ Vulnerabilities Detected</h3>
                         <ul class="vuln-list">
                 `;
                 
-                data.vulnerabilities.forEach(vuln => {
-                    const icon = vuln.severity === 'CRITICAL' ? '🔴' : (vuln.severity === 'HIGH' ? '🟠' : '🟡');
-                    html += `<li>${icon} <strong>${vuln.name}</strong> (${vuln.severity})<br>
-                        <span style="font-size: 14px; color: #666;">${vuln.description}</span></li>`;
+                result.vulnerabilities.forEach(vuln => {
+                    const icon = vuln.severity === 'CRITICAL' ? '🔴' : 
+                                (vuln.severity === 'HIGH' ? '🔴' : 
+                                (vuln.severity === 'MEDIUM' ? '🟠' : '🟡'));
+                    
+                    // Build CVE info for parentheses
+                    let cveInfo = vuln.severity;
+                    if (vuln.cves && vuln.cves.length > 0) {
+                        if (vuln.cves.length < 5) {
+                            // List all CVEs if less than 5
+                            const cveIds = vuln.cves.map(cve => cve.id).join(', ');
+                            cveInfo = `${vuln.severity}, ${cveIds}`;
+                        } else {
+                            // Show count if 5 or more
+                            cveInfo = `${vuln.severity}, Multiple CVEs`;
+                        }
+                    }
+                    
+                    // Build detailed CVE display for description area
+                    let cveDetails = '';
+                    if (vuln.cves && vuln.cves.length > 0) {
+                        const cveList = vuln.cves.map(cve => `${cve.id} (CVSS ${cve.cvss})`).join(', ');
+                        cveDetails = `<br><span style="font-size: 13px; color: #2c3e50;"><strong>CVEs:</strong> ${cveList}</span>`;
+                    }
+                    
+                    html += `<li>${icon} <strong>${vuln.name}</strong> (${cveInfo})<br>
+                        <span style="font-size: 14px; color: #666;">${vuln.description}</span>${cveDetails}</li>`;
                 });
                 
                 html += '</ul></div>';

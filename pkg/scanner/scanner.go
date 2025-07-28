@@ -2,8 +2,11 @@ package scanner
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -17,6 +20,8 @@ type Config struct {
 	MaxConcurrency  int
 	FollowRedirects bool
 	Verbose         bool
+	CustomCAPath    string    // Path to directory containing custom CA certificates
+	CustomCAs       *x509.CertPool  // Pool of custom CAs to use for validation
 }
 
 type Result struct {
@@ -104,7 +109,60 @@ func New(config Config) *Scanner {
 	if config.MaxConcurrency == 0 {
 		config.MaxConcurrency = 10
 	}
+	
+	// Load custom CAs if path is provided
+	if config.CustomCAPath != "" && config.CustomCAs == nil {
+		config.CustomCAs = loadCustomCAs(config.CustomCAPath, config.Verbose)
+	}
+	
 	return &Scanner{config: config}
+}
+
+// loadCustomCAs loads custom CA certificates from a directory
+func loadCustomCAs(caPath string, verbose bool) *x509.CertPool {
+	// Start with system CAs
+	caPool, err := x509.SystemCertPool()
+	if err != nil {
+		// If system pool fails, create new pool
+		caPool = x509.NewCertPool()
+		if verbose {
+			fmt.Printf("Warning: Could not load system CA pool: %v\n", err)
+		}
+	}
+	
+	// Read all .crt, .pem, and .cer files from the directory
+	patterns := []string{"*.crt", "*.pem", "*.cer", "*.ca"}
+	for _, pattern := range patterns {
+		files, err := filepath.Glob(filepath.Join(caPath, pattern))
+		if err != nil {
+			if verbose {
+				fmt.Printf("Warning: Error reading CA files with pattern %s: %v\n", pattern, err)
+			}
+			continue
+		}
+		
+		for _, file := range files {
+			certData, err := ioutil.ReadFile(file)
+			if err != nil {
+				if verbose {
+					fmt.Printf("Warning: Could not read CA file %s: %v\n", file, err)
+				}
+				continue
+			}
+			
+			if caPool.AppendCertsFromPEM(certData) {
+				if verbose {
+					fmt.Printf("Loaded custom CA from %s\n", file)
+				}
+			} else {
+				if verbose {
+					fmt.Printf("Warning: Failed to parse CA certificate from %s\n", file)
+				}
+			}
+		}
+	}
+	
+	return caPool
 }
 
 func (s *Scanner) ScanTarget(target string) (*Result, error) {
@@ -413,7 +471,86 @@ func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo)
 		info.ValidationErrors = append(info.ValidationErrors, fmt.Sprintf("Hostname verification failed: %v", err))
 	}
 	
+	// Perform certificate chain validation with custom CAs
+	s.validateCertificateChain(cert, state.PeerCertificates, host, info)
+	
 	return info, nil
+}
+
+// validateCertificateChain performs certificate chain validation with custom CAs
+func (s *Scanner) validateCertificateChain(cert *x509.Certificate, chain []*x509.Certificate, host string, info *CertificateInfo) {
+	// Use custom CA pool if available, otherwise use system pool
+	var rootCAs *x509.CertPool
+	if s.config.CustomCAs != nil {
+		rootCAs = s.config.CustomCAs
+	} else {
+		var err error
+		rootCAs, err = x509.SystemCertPool()
+		if err != nil {
+			// Fall back to empty pool
+			rootCAs = x509.NewCertPool()
+		}
+	}
+	
+	// Create intermediate pool
+	intermediates := x509.NewCertPool()
+	for i := 1; i < len(chain); i++ {
+		intermediates.AddCert(chain[i])
+	}
+	
+	// Verify certificate chain
+	opts := x509.VerifyOptions{
+		DNSName:       host,
+		Roots:         rootCAs,
+		Intermediates: intermediates,
+	}
+	
+	chains, err := cert.Verify(opts)
+	if err != nil {
+		// Check if it's a self-signed certificate
+		if cert.Subject.String() == cert.Issuer.String() {
+			// It's self-signed, but let's check if it's in our custom CA pool
+			if s.config.CustomCAs != nil {
+				// Try to verify as a root CA
+				opts.Roots = s.config.CustomCAs
+				opts.DNSName = "" // Root CAs don't need hostname verification
+				_, customErr := cert.Verify(opts)
+				if customErr == nil {
+					// It's a trusted root CA from our custom pool
+					// Don't mark as invalid, just note it's a root CA
+					info.ValidationErrors = append(info.ValidationErrors, "Root CA certificate (trusted via custom CA)")
+					return
+				}
+			}
+			// It's truly self-signed and not in our trust store
+			info.IsValid = false
+			info.ValidationErrors = append(info.ValidationErrors, "Self-signed certificate")
+		} else {
+			// Certificate chain validation failed for other reasons
+			info.IsValid = false
+			if strings.Contains(err.Error(), "unknown authority") {
+				info.ValidationErrors = append(info.ValidationErrors, "Certificate signed by unknown CA")
+			} else {
+				info.ValidationErrors = append(info.ValidationErrors, fmt.Sprintf("Certificate chain validation failed: %v", err))
+			}
+		}
+	} else {
+		// Certificate chain is valid
+		// If we have custom CAs and the chain validated, it might be from our custom CA
+		if s.config.CustomCAs != nil && len(chains) > 0 {
+			// Check if the root is from our custom CA (not system)
+			systemPool, _ := x509.SystemCertPool()
+			if systemPool != nil {
+				// Try with only system pool
+				opts.Roots = systemPool
+				_, sysErr := cert.Verify(opts)
+				if sysErr != nil {
+					// It validated with custom CAs but not system CAs
+					info.ValidationErrors = append(info.ValidationErrors, "Certificate trusted via custom CA")
+				}
+			}
+		}
+	}
 }
 
 func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []VulnerabilityInfo {

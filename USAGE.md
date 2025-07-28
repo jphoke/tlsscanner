@@ -210,7 +210,24 @@ GOOS=windows GOARCH=amd64 go build -o tlsscanner.exe ./cmd/scanner # Windows
 
 # Mail server with STARTTLS
 ./tlsscanner -target mail.example.com:587
+
+# Verbose output
+./tlsscanner -target example.com -v
+
+# Custom timeout
+./tlsscanner -target example.com -timeout 30s
+
+# Use custom CA certificates
+./tlsscanner -target internal.server.com -ca-path ./custom-ca
 ```
+
+### Command Line Options
+
+- `-target`: The host:port to scan (required)
+- `-json`: Output results in JSON format
+- `-v`: Verbose output (shows detailed progress)
+- `-timeout`: Connection timeout (default: 10s)
+- `-ca-path`: Path to directory containing custom CA certificates
 
 ### Output Formats
 

@@ -131,6 +131,53 @@ For example, if PostgreSQL is already running on 5432:
 POSTGRES_HOST_PORT=5433    # Use a different port
 ```
 
+## 🔐 Custom CA Configuration
+
+The scanner supports custom Certificate Authorities (CAs) for environments using internal CAs like Active Directory Certificate Services.
+
+### Adding Custom CAs
+
+1. Create a directory for your CA certificates:
+```bash
+mkdir -p custom-ca
+```
+
+2. Place your CA certificates (`.crt`, `.pem`, `.cer`, or `.ca` files) in the `custom-ca` directory
+
+3. Configure the scanner to use your custom CAs in `.env`:
+```bash
+# Path to directory containing custom CA certificates
+HOST_CUSTOM_CA_PATH=./custom-ca
+
+# Enable verbose logging to see which CAs are loaded
+SCANNER_VERBOSE=true
+```
+
+### Common Use Cases
+
+**Active Directory Certificate Services (AD CS):**
+```bash
+# Export AD root CA certificate (on Windows)
+certutil -ca.cert custom-ca/ad-root-ca.crt
+```
+
+**Internal Certificate Authority:**
+```bash
+# Copy your internal CA certificate
+cp /path/to/internal-ca.pem custom-ca/
+```
+
+### Verification
+
+After adding custom CAs, verify they're loaded:
+```bash
+# Check API logs
+docker compose logs api | grep "Loaded custom CA"
+
+# Test with CLI
+./scanner -target internal.server.com -ca-path ./custom-ca
+```
+
 ## 📚 Documentation
 
 - [**Usage Guide**](USAGE.md) - Detailed instructions for web UI and API usage

@@ -210,6 +210,8 @@ func main() {
 	scannerConfig := scanner.Config{
 		Timeout:        10 * time.Second,
 		MaxConcurrency: 10,
+		CustomCAPath:   os.Getenv("CUSTOM_CA_PATH"),
+		Verbose:        os.Getenv("SCANNER_VERBOSE") == "true",
 	}
 	s := scanner.New(scannerConfig)
 	

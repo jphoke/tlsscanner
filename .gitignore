@@ -49,3 +49,11 @@ Screenshot*
 
 CLAUDE.md
 SWAGGER_HOST_ROLLBACK.md
+
+# Custom CA certificates (user-specific)
+custom-ca/*.crt
+custom-ca/*.pem
+custom-ca/*.cer
+custom-ca/*.ca
+# But keep the README
+!custom-ca/README.md

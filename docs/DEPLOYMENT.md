@@ -382,6 +382,9 @@ az container create \
 | `GIN_MODE` | Gin framework mode | `release` |
 | `SCAN_TIMEOUT` | Scanner timeout (seconds) | `30` |
 | `MAX_CONCURRENT_SCANS` | Worker pool size | `10` |
+| `CUSTOM_CA_PATH` | Path to custom CA certificates | `/certs/custom-ca` |
+| `HOST_CUSTOM_CA_PATH` | Host path for CA certificates | `./custom-ca` |
+| `SCANNER_VERBOSE` | Enable verbose scanner logging | `false` |
 
 ### Performance Tuning
 
@@ -395,6 +398,35 @@ maintenance_work_mem = 64MB
 # Redis tuning (redis.conf)
 maxmemory 256mb
 maxmemory-policy allkeys-lru
+```
+
+### Custom CA Configuration
+
+For environments using internal Certificate Authorities:
+
+```bash
+# 1. Create CA directory on host
+mkdir -p /opt/tlsscanner/custom-ca
+
+# 2. Copy CA certificates
+cp /path/to/internal-ca.crt /opt/tlsscanner/custom-ca/
+cp /path/to/intermediate-ca.crt /opt/tlsscanner/custom-ca/
+
+# 3. Configure in .env
+HOST_CUSTOM_CA_PATH=/opt/tlsscanner/custom-ca
+SCANNER_VERBOSE=true  # To verify CAs are loaded
+
+# 4. Set proper permissions
+chmod 644 /opt/tlsscanner/custom-ca/*.crt
+```
+
+**Active Directory Integration:**
+```bash
+# Export AD root CA
+certutil -ca.cert /opt/tlsscanner/custom-ca/ad-root-ca.crt
+
+# Export AD intermediate CAs if any
+certutil -ca.cert /opt/tlsscanner/custom-ca/ad-intermediate-ca.crt
 ```
 
 ## Security Considerations

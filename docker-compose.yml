@@ -36,6 +36,8 @@ services:
       DATABASE_URL: postgres://postgres:password@postgres/tlsscanner?sslmode=disable
       REDIS_URL: redis:6379
       PORT: 8080
+      CUSTOM_CA_PATH: ${CUSTOM_CA_PATH:-/certs/custom-ca}
+      SCANNER_VERBOSE: ${SCANNER_VERBOSE:-false}
     ports:
       - "${API_HOST_PORT:-8000}:8080"
     depends_on:
@@ -45,6 +47,7 @@ services:
         condition: service_healthy
     volumes:
       - ./web/static:/app/static
+      - ${HOST_CUSTOM_CA_PATH:-./custom-ca}:/certs/custom-ca:ro
 
   nginx:
     image: nginx:alpine

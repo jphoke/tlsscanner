@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jphoke/tlsscanner-portal/pkg/scanner"
@@ -16,6 +17,7 @@ func main() {
 		timeout    = flag.Duration("timeout", 10*time.Second, "Connection timeout")
 		jsonOutput = flag.Bool("json", false, "Output as JSON")
 		verbose    = flag.Bool("v", false, "Verbose output")
+		caPath     = flag.String("ca-path", "", "Path to directory containing custom CA certificates")
 	)
 	
 	flag.Parse()
@@ -27,8 +29,9 @@ func main() {
 	}
 	
 	config := scanner.Config{
-		Timeout: *timeout,
-		Verbose: *verbose,
+		Timeout:      *timeout,
+		Verbose:      *verbose,
+		CustomCAPath: *caPath,
 	}
 	
 	s := scanner.New(config)
@@ -96,6 +99,12 @@ func printTextResult(r *scanner.Result) {
 		
 		if r.Certificate.IsValid {
 			fmt.Printf("  Status: ✅ Valid\n")
+			// Show if trusted via custom CA
+			for _, note := range r.Certificate.ValidationErrors {
+				if strings.Contains(note, "custom CA") {
+					fmt.Printf("    - %s\n", note)
+				}
+			}
 		} else {
 			fmt.Printf("  Status: ❌ Invalid\n")
 			for _, err := range r.Certificate.ValidationErrors {

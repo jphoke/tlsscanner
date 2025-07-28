@@ -4,7 +4,29 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 
 ## [Unreleased]
 
-## [1.1.0] - 2025-07-28
+## [1.0.1] - 2025-07-28
+
+### Added - Custom Certificate Authority Support
+- **Custom CA Support**: Scanner can now trust internal/corporate CAs
+  - Supports Active Directory Certificate Services (AD CS) and other internal CAs
+  - Certificates validated against custom CA pool
+  - Maintains ability to scan any server (InsecureSkipVerify)
+  - CLI flag: `-ca-path /path/to/ca/dir`
+  - Docker support via volume mapping
+  - Environment configuration:
+    - `HOST_CUSTOM_CA_PATH=./custom-ca` (Host directory)
+    - `CUSTOM_CA_PATH=/certs/custom-ca` (Container path)
+    - `SCANNER_VERBOSE=true` (See loaded CAs)
+
+### Added - Configurable Host Ports
+- **Environment-based Port Configuration**: Prevent conflicts with existing services
+  - All host ports now configurable via environment variables
+  - Default ports remain standard (5432, 6379, 8000, 3000)
+  - Configuration in `.env` file:
+    - `POSTGRES_HOST_PORT=5432` (PostgreSQL)
+    - `REDIS_HOST_PORT=6379` (Redis)
+    - `API_HOST_PORT=8000` (API server)
+    - `WEB_HOST_PORT=3000` (Web UI)
 
 ### Added - Vulnerability Detection
 - **Comprehensive TLS Vulnerability Scanning**
@@ -34,7 +56,7 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 
 ## [1.0.0] - 2025-07-26
 
-### Added - 2025-07-26 Morning Session
+### Added - 2025-07-26
 - **Comments Field**: Added 100-character comments field to scans for tracking change tickets, test purposes, etc.
   - Database schema updated with comments VARCHAR(100)
   - API accepts and returns comments
@@ -53,15 +75,36 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
   - Clear error message box with troubleshooting steps
   - Early connection detection prevents hanging
 
-### Fixed - 2025-07-26 Morning Session
+### Fixed - 2025-07-26
 - Fixed database grade field size (was VARCHAR(3), now VARCHAR(10))
 - Fixed Docker networking issue with localhost/127.0.0.1 scans
 - Fixed UI grade display truncation for longer grades
 - Added proper CSS escaping for special grade characters
 
-### Changed - 2025-07-26 Morning Session
+### Changed - 2025-07-26
 - Scanner now fails fast on connection errors
 - Better error messages for connection and TLS handshake failures
+
+### Added - 2025-07-26 - STARTTLS Implementation
+- **Automatic STARTTLS Support**: Zero-configuration mail server scanning
+  - Auto-detects service type based on port number
+  - Automatically negotiates STARTTLS for mail servers
+  - No user configuration needed - "it just works"
+  - Implemented protocols:
+    - SMTP (ports 25, 587) with EHLO negotiation
+    - IMAP (port 143) with CAPABILITY negotiation
+    - POP3 (port 110) with CAPA/STLS negotiation
+  - Direct TLS for secure ports (465, 993, 995)
+
+- **Service Type Tracking**
+  - Records `service_type` in database (smtp, imap, https, etc.)
+  - Records `connection_type` in database (direct-tls or starttls)
+  - API returns both fields for audit trail
+
+- **Port-based Protocol Detection**
+  - Well-known ports mapped to services
+  - Unknown ports default to direct TLS
+  - Tested with Gmail, Outlook, and other major providers
 
 ### Added - Initial Release Features
 - Core TLS scanner with <1s scan times

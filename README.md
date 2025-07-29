@@ -24,28 +24,32 @@ Open http://localhost:3000 - that's it!
 ## Screenshots
 
 <div align="center">
-  <img width="1199" alt="Screenshot of main portal page" src="https://github.com/user-attachments/assets/81ed1d69-1b93-4af1-a638-ab4706754568" />
+<img width="626" height="915" alt="Screenshot 2025-07-29 at 08 05 35" src="https://github.com/user-attachments/assets/29105479-53b9-4ffd-92e0-b556c9dc0a5a" />
+
   <p><em>Main portal interface - Simple and intuitive scanning</em></p>
 </div>
 
   <br/>
 
 <div align="center">
-  <img width="1183" alt="Results for BADSSL.COM" src="https://github.com/user-attachments/assets/fead97a3-3089-4876-a632-446c8b210c90" />
-  <p><em>Grade B result showing security issues and remediation steps</em></p>
+  <img width="608" height="1133" alt="Screenshot 2025-07-29 at 08 12 12" src="https://github.com/user-attachments/assets/b84e16fc-81b7-48fa-8377-4e6820199c57" />
+
+  <p><em>Output of "badssl.com" showing security issues and remediation steps</em></p>
 </div>
 
  <br/>
 
 <div align="center">
- <img width="1198" alt="Results for www.hoke.org" src="https://github.com/user-attachments/assets/2628b769-5113-44e5-8ee3-5a0669f3ef5e" />
- <p><em>Grade A+ result demonstrating strong security configuration</em></p>
+<img width="591" height="592" alt="Screenshot 2025-07-29 at 08 06 34" src="https://github.com/user-attachments/assets/ac7a172d-3cb4-4ee8-ac49-1c3c9373d88b" />
+
+  <p><em>Grade A result demonstrating compliant security configuration</em></p>
 </div>
 
   <br/>
 
 <div align="center">
-  <img width="1179" height="952" alt="Screenshot 2025-07-26 at 17 22 55" src="https://github.com/user-attachments/assets/1d62e1cf-f9dd-4679-97f9-eebc0baa9453" />
+<img width="591" height="1107" alt="Screenshot 2025-07-29 at 08 07 36" src="https://github.com/user-attachments/assets/aacf4c9a-cfe2-43ad-86ae-d60e68d7223b" />
+
   <p><em>Scan results for SMTP/S Connections using STARTTLS</em></p>
 </div>
 

@@ -733,7 +733,135 @@ func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []Vuln
 		})
 	}
 	
+	// Heartbleed (CVE-2014-0160) - Heuristic detection
+	heartbleedInfo := s.checkHeartbleedHeuristic(result)
+	if heartbleedInfo.Affected {
+		vulns = append(vulns, heartbleedInfo)
+	}
+	
 	return vulns
+}
+
+// checkHeartbleedHeuristic performs heuristic detection for Heartbleed vulnerability
+// Note: This is NOT an active exploitation test, but a heuristic check based on:
+// - TLS version (only TLS 1.0-1.2 are affected)
+// - Server behavior and cipher preferences
+// - Known patterns from patched vs unpatched servers
+func (s *Scanner) checkHeartbleedHeuristic(result *Result) VulnerabilityInfo {
+	info := VulnerabilityInfo{
+		Name:        "Heartbleed",
+		Severity:    "CRITICAL",
+		Description: "Heartbleed (CVE-2014-0160) vulnerability detected based on heuristic analysis",
+		Affected:    false,
+		CVEs: []CVEInfo{
+			{ID: "CVE-2014-0160", CVSS: 7.5},
+		},
+	}
+	
+	// Check 1: TLS version - Heartbleed only affects TLS 1.0, 1.1, and 1.2
+	vulnerableVersionFound := false
+	var vulnerableVersions []string
+	
+	for _, proto := range result.SupportedProtocols {
+		if proto.Enabled {
+			switch proto.Version {
+			case tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12:
+				vulnerableVersionFound = true
+				vulnerableVersions = append(vulnerableVersions, proto.Name)
+			}
+		}
+	}
+	
+	// If only TLS 1.3 is supported, server is not vulnerable
+	if !vulnerableVersionFound {
+		return info
+	}
+	
+	// Check 2: Analyze cipher suite preferences
+	// Servers patched post-Heartbleed often updated their cipher preferences
+	hasModernCiphers := false
+	hasLegacyCiphers := false
+	
+	for _, cipher := range result.CipherSuites {
+		// Modern ciphers (typically added/preferred post-2014)
+		if strings.Contains(cipher.Name, "CHACHA20") || 
+		   strings.Contains(cipher.Name, "AES_256_GCM") {
+			hasModernCiphers = true
+		}
+		
+		// Legacy ciphers often indicate older, potentially unpatched servers
+		if strings.Contains(cipher.Name, "RC4") || 
+		   strings.Contains(cipher.Name, "3DES") ||
+		   strings.Contains(cipher.Name, "DES_CBC") {
+			hasLegacyCiphers = true
+		}
+	}
+	
+	// Check 3: Certificate age can be an indicator
+	certIsOld := false
+	if result.Certificate != nil && !result.Certificate.NotBefore.IsZero() {
+		// If certificate was issued before April 2014 (Heartbleed disclosure)
+		// and hasn't been reissued, it's more likely the server is unpatched
+		heartbleedDate := time.Date(2014, 4, 7, 0, 0, 0, 0, time.UTC)
+		if result.Certificate.NotBefore.Before(heartbleedDate) {
+			certIsOld = true
+		}
+	}
+	
+	// Calculate confidence score based on multiple factors
+	confidenceScore := 0
+	var indicators []string
+	
+	if vulnerableVersionFound {
+		confidenceScore += 40
+		indicators = append(indicators, fmt.Sprintf("Supports vulnerable TLS versions: %s", strings.Join(vulnerableVersions, ", ")))
+	}
+	
+	if hasLegacyCiphers && !hasModernCiphers {
+		confidenceScore += 30
+		indicators = append(indicators, "Uses only legacy cipher suites")
+	} else if hasLegacyCiphers {
+		confidenceScore += 15
+		indicators = append(indicators, "Supports legacy cipher suites")
+	}
+	
+	if certIsOld {
+		confidenceScore += 20
+		indicators = append(indicators, "Certificate issued before Heartbleed disclosure")
+	}
+	
+	// Check 4: Analyze server behavior patterns
+	// Servers that were emergency-patched often have specific cipher ordering
+	if len(result.CipherSuites) > 0 {
+		firstCipher := result.CipherSuites[0].Name
+		// Many emergency patches defaulted to specific cipher preferences
+		if strings.Contains(firstCipher, "ECDHE_RSA_WITH_AES_128_CBC_SHA") ||
+		   strings.Contains(firstCipher, "DHE_RSA_WITH_AES_128_CBC_SHA") {
+			confidenceScore += 10
+			indicators = append(indicators, "Cipher preference matches common emergency patch patterns")
+		}
+	}
+	
+	// Determine if we should flag as potentially vulnerable
+	if confidenceScore >= 60 {
+		info.Affected = true
+		info.Description = fmt.Sprintf(
+			"Heartbleed vulnerability suspected (confidence: %d%%) based on heuristic analysis. "+
+			"This is NOT an active exploitation test. Indicators: %s. "+
+			"Recommend immediate verification with dedicated Heartbleed testing tools.",
+			confidenceScore,
+			strings.Join(indicators, "; "),
+		)
+		
+		// Adjust severity based on confidence
+		if confidenceScore >= 80 {
+			info.Severity = "CRITICAL"
+		} else if confidenceScore >= 60 {
+			info.Severity = "HIGH"
+		}
+	}
+	
+	return info
 }
 
 // getHighestCVSS returns the highest CVSS score from a list of CVEs

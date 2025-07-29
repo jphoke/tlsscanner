@@ -83,6 +83,7 @@ The scanner automatically detects STARTTLS for mail ports and trusts certificate
 
 - [Installation Options](INSTALL.md) - Custom ports, CLI-only, production setup
 - [API Documentation](docs/API.md) - REST API integration
+- [Vulnerability Detection](docs/VULNERABILITIES.md) - How vulnerabilities are detected
 - [Contributing](docs/CONTRIBUTING.md) - Help improve the scanner
 
 ## License

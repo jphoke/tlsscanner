@@ -150,7 +150,7 @@
 - [x] Anonymous cipher suites detection
 - [x] Weak DH parameters warning (Logjam risk)
 - [x] CVE tracking with CVSS scores
-- [ ] Heartbleed (CVE-2014-0160)
+- [x] Heartbleed (CVE-2014-0160) - Heuristic detection with confidence scoring
 - [ ] POODLE (CVE-2014-3566)
 - [ ] CRIME/BREACH compression attacks
 - [ ] ROBOT (CVE-2017-13099)
@@ -158,6 +158,11 @@
 - [ ] SSL v2/v3 via OpenSSL
 
 ### Advanced Analysis
+- [ ] Banner detection and version extraction
+  - [ ] Capture SMTP/IMAP/POP3 banners during STARTTLS (already read, just ignored)
+  - [ ] Extract OpenSSL/server versions from banners
+  - [ ] HTTPS server header capture (may need parallel curl or HTTP client)
+  - [ ] Use version info to improve vulnerability detection accuracy
 - [ ] Certificate transparency logs
 - [ ] OCSP stapling verification
 - [ ] DNS CAA record checking

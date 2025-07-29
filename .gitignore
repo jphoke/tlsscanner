@@ -49,8 +49,7 @@ postgres_data/
 Screenshot*
 
 CLAUDE.md
-SWAGGER_HOST_ROLLBACK.md
-
+.claude/
 # Custom CA certificates (user-specific)
 custom-ca/*.crt
 custom-ca/*.pem

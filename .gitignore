@@ -5,6 +5,7 @@
 *.dll
 *.so
 *.dylib
+/tlsscanner
 
 # Test binary, built with `go test -c`
 *.test

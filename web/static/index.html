@@ -553,7 +553,40 @@
                         cveDetails = `<br><span style="font-size: 13px; color: #2c3e50;"><strong>CVEs:</strong> ${cveList}</span>`;
                     }
                     
-                    html += `<li>${icon} <strong>${vuln.name}</strong> (${cveInfo})<br>
+                    // Create anchor link based on vulnerability name
+                    let vulnAnchor = '';
+                    switch(vuln.name) {
+                        case 'BEAST Attack':
+                            vulnAnchor = 'beast-attack';
+                            break;
+                        case 'SWEET32 Birthday Attack':
+                            vulnAnchor = 'sweet32';
+                            break;
+                        case 'FREAK Attack':
+                            vulnAnchor = 'freak-attack';
+                            break;
+                        case 'RC4 Cipher Suites':
+                            vulnAnchor = 'rc4-weaknesses';
+                            break;
+                        case 'Anonymous Cipher Suites':
+                            vulnAnchor = 'anonymous-ciphers';
+                            break;
+                        case 'Weak DH Parameters':
+                            vulnAnchor = 'weak-dh-parameters';
+                            break;
+                        case 'Heartbleed':
+                            vulnAnchor = 'heartbleed';
+                            break;
+                        default:
+                            // Fallback for any new vulnerabilities
+                            vulnAnchor = vuln.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+                    }
+                    const docsUrl = `https://github.com/jphoke/tlsscanner/blob/main/docs/VULNERABILITIES.md#${vulnAnchor}`;
+                    
+                    html += `<li>${icon} <strong>${vuln.name}</strong> (${cveInfo}) 
+                        <a href="${docsUrl}" target="_blank" style="font-size: 12px; color: #3498db; text-decoration: none;" title="Learn more about ${vuln.name}">
+                            📖 Learn more
+                        </a><br>
                         <span style="font-size: 14px; color: #666;">${vuln.description}</span>${cveDetails}</li>`;
                 });
                 

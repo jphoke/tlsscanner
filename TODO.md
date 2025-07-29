@@ -171,6 +171,11 @@
 - [ ] Certificate pinning detection
 
 ### UI/UX Improvements
+- [ ] Help/Reference documentation integrated into web UI
+  - [ ] Create comprehensive help document covering vulnerability detection, grading methodology, and usage
+  - [ ] Serve documentation files through web server
+  - [ ] Update vulnerability links to use local documentation instead of GitHub
+  - [ ] Include search functionality for help topics
 - [ ] Historical trending graphs
 - [ ] Scan comparison tool
 - [ ] Mobile app

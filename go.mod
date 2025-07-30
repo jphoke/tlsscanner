@@ -6,7 +6,7 @@ toolchain go1.24.5
 
 require (
 	github.com/gin-gonic/gin v1.10.1
-	github.com/gorilla/websocket v1.5.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.5.5
 	github.com/swaggo/files v1.0.1

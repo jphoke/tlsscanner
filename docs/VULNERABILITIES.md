@@ -243,8 +243,23 @@ Planned vulnerability detections include:
 - Flag parameters ≤1024 bits
 
 ### SSL v2/v3 Detection
-- Requires external tool integration
-- Cannot be detected with Go's crypto/tls
+- SSL v3: Detection code implemented, automatic F grade assigned
+- SSL v2: Not supported even by zcrypto
+- Note: Even zcrypto blocks SSL v3 connections despite having the constant
+
+### Export Cipher Detection (Enhanced with zcrypto)
+- Can now enumerate export-grade ciphers
+- More accurate FREAK vulnerability detection
+- Access to deliberately weakened encryption from 1990s
+
+### NULL Cipher Detection (Enhanced with zcrypto)
+- Can identify ciphers with no encryption
+- Better anonymous cipher detection
+
+### Enhanced Cipher Analysis (zcrypto Benefits)
+- Browser-specific cipher suite lists (Chrome, Firefox, Safari)
+- More comprehensive cipher enumeration
+- Research-focused library exposes "scary parts" for analysis
 
 ## Important Notes
 

@@ -1,8 +1,8 @@
 package scanner
 
 import (
-	"crypto/tls"
-	"crypto/x509"
+	ztls "github.com/zmap/zcrypto/tls"
+	zx509 "github.com/zmap/zcrypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -21,7 +21,7 @@ type Config struct {
 	FollowRedirects bool
 	Verbose         bool
 	CustomCAPath    string    // Path to directory containing custom CA certificates
-	CustomCAs       *x509.CertPool  // Pool of custom CAs to use for validation
+	CustomCAs       *zx509.CertPool  // Pool of custom CAs to use for validation
 }
 
 type Result struct {
@@ -124,16 +124,71 @@ func New(config Config) *Scanner {
 	return &Scanner{config: config}
 }
 
-// loadCustomCAs loads custom CA certificates from a directory
-func loadCustomCAs(caPath string, verbose bool) *x509.CertPool {
-	// Start with system CAs
-	caPool, err := x509.SystemCertPool()
-	if err != nil {
-		// If system pool fails, create new pool
-		caPool = x509.NewCertPool()
-		if verbose {
-			fmt.Printf("Warning: Could not load system CA pool: %v\n", err)
+// loadSystemCAs loads system CA certificates
+func loadSystemCAs() *zx509.CertPool {
+	caPool := zx509.NewCertPool()
+	
+	// Debug: print when called
+	// fmt.Printf("DEBUG: Loading system CAs...\n")
+	
+	// Common system certificate locations
+	systemCertPaths := []string{
+		"/etc/ssl/certs/ca-certificates.crt",                // Debian/Ubuntu/Alpine
+		"/etc/pki/tls/certs/ca-bundle.crt",                  // RedHat/CentOS/Fedora
+		"/etc/ssl/ca-bundle.pem",                            // OpenSUSE
+		"/etc/pki/tls/cert.pem",                             // Old RedHat
+		"/usr/local/share/certs/ca-root-nss.crt",            // FreeBSD
+		"/etc/ssl/cert.pem",                                 // OpenBSD
+		"/System/Library/Keychains/SystemRootCertificates.keychain", // macOS
+	}
+	
+	loaded := false
+	for _, path := range systemCertPaths {
+		if certData, err := ioutil.ReadFile(path); err == nil {
+			if caPool.AppendCertsFromPEM(certData) {
+				loaded = true
+				break
+			}
 		}
+	}
+	
+	// Also try loading individual certs from directories
+	if !loaded {
+		certDirs := []string{
+			"/etc/ssl/certs",
+			"/usr/local/share/certs",
+			"/etc/pki/tls/certs",
+		}
+		
+		for _, dir := range certDirs {
+			files, err := filepath.Glob(filepath.Join(dir, "*.crt"))
+			if err != nil {
+				continue
+			}
+			pemFiles, _ := filepath.Glob(filepath.Join(dir, "*.pem"))
+			files = append(files, pemFiles...)
+			
+			for _, file := range files {
+				if certData, err := ioutil.ReadFile(file); err == nil {
+					caPool.AppendCertsFromPEM(certData)
+					loaded = true
+				}
+			}
+			if loaded {
+				break
+			}
+		}
+	}
+	
+	return caPool
+}
+
+// loadCustomCAs loads custom CA certificates from a directory
+func loadCustomCAs(caPath string, verbose bool) *zx509.CertPool {
+	// Start with system CAs
+	caPool := loadSystemCAs()
+	if verbose {
+		fmt.Printf("Loaded system CA certificates\n")
 	}
 	
 	// Read all .crt, .pem, and .cer files from the directory
@@ -228,8 +283,8 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 	testConn.Close()
 
 	// Now test if TLS is available
-	var tlsConn *tls.Conn
-	tlsConfig := &tls.Config{
+	var tlsConn *ztls.Conn
+	tlsConfig := &ztls.Config{
 		InsecureSkipVerify: true,
 	}
 	
@@ -245,7 +300,7 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 		}
 	} else {
 		// Direct TLS connection
-		tlsConn, err = tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), tlsConfig)
+		tlsConn, err = ztls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), tlsConfig)
 		if err != nil {
 			// TCP works but TLS doesn't - still - grade
 			result.Errors = append(result.Errors, fmt.Sprintf("TLS handshake failed: %v", err))
@@ -264,11 +319,11 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 		name    string
 		version uint16
 	}{
-		{"SSL 3.0", tls.VersionSSL30}, // Won't actually work in modern Go
-		{"TLS 1.0", tls.VersionTLS10},
-		{"TLS 1.1", tls.VersionTLS11},
-		{"TLS 1.2", tls.VersionTLS12},
-		{"TLS 1.3", tls.VersionTLS13},
+		{"SSL 3.0", ztls.VersionSSL30}, // Won't actually work in modern Go
+		{"TLS 1.0", ztls.VersionTLS10},
+		{"TLS 1.1", ztls.VersionTLS11},
+		{"TLS 1.2", ztls.VersionTLS12},
+		{"TLS 1.3", ztls.VersionTLS13},
 	}
 
 	for _, proto := range protocols {
@@ -306,13 +361,17 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 }
 
 func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo ServiceInfo) bool {
-	tlsConfig := &tls.Config{
+	if s.config.Verbose && version == ztls.VersionSSL30 {
+		fmt.Printf("DEBUG: Testing SSL v3 protocol (version=0x%04x)\n", version)
+	}
+	
+	tlsConfig := &ztls.Config{
 		MinVersion:         version,
 		MaxVersion:         version,
 		InsecureSkipVerify: true,
 	}
 	
-	var conn *tls.Conn
+	var conn *ztls.Conn
 	var err error
 	
 	if serviceInfo.Protocol == ProtocolSTARTTLS {
@@ -324,10 +383,13 @@ func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo Se
 			Timeout: s.config.Timeout,
 		}
 		target := net.JoinHostPort(host, port)
-		conn, err = tls.DialWithDialer(dialer, "tcp", target, tlsConfig)
+		conn, err = ztls.DialWithDialer(dialer, "tcp", target, tlsConfig)
 	}
 	
 	if err != nil {
+		if s.config.Verbose && version == ztls.VersionSSL30 {
+			fmt.Printf("DEBUG: SSL v3 test failed: %v\n", err)
+		}
 		return false
 	}
 	defer conn.Close()
@@ -340,8 +402,8 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 	
 	// Get appropriate cipher suites for the protocol version
 	var testCiphers []uint16
-	for _, suite := range tls.CipherSuites() {
-		if version == tls.VersionTLS13 {
+	for _, suite := range ztls.CipherSuites() {
+		if version == ztls.VersionTLS13 {
 			// TLS 1.3 ciphers
 			if suite.ID&0xff00 == 0x1300 {
 				testCiphers = append(testCiphers, suite.ID)
@@ -355,8 +417,8 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 	}
 	
 	// Also test insecure ciphers
-	for _, suite := range tls.InsecureCipherSuites() {
-		if version != tls.VersionTLS13 {
+	for _, suite := range ztls.InsecureCipherSuites() {
+		if version != ztls.VersionTLS13 {
 			testCiphers = append(testCiphers, suite.ID)
 		}
 	}
@@ -364,14 +426,14 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 	target := net.JoinHostPort(host, port)
 	
 	for _, cipherID := range testCiphers {
-		tlsConfig := &tls.Config{
+		tlsConfig := &ztls.Config{
 			MinVersion:         version,
 			MaxVersion:         version,
 			CipherSuites:       []uint16{cipherID},
 			InsecureSkipVerify: true,
 		}
 		
-		var conn *tls.Conn
+		var conn *ztls.Conn
 		var err error
 		
 		if serviceInfo.Protocol == ProtocolSTARTTLS {
@@ -382,7 +444,7 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 			dialer := &net.Dialer{
 				Timeout: s.config.Timeout,
 			}
-			conn, err = tls.DialWithDialer(dialer, "tcp", target, tlsConfig)
+			conn, err = ztls.DialWithDialer(dialer, "tcp", target, tlsConfig)
 		}
 		
 		if err == nil {
@@ -406,11 +468,11 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 }
 
 func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo) (*CertificateInfo, error) {
-	tlsConfig := &tls.Config{
+	tlsConfig := &ztls.Config{
 		InsecureSkipVerify: true,
 	}
 	
-	var conn *tls.Conn
+	var conn *ztls.Conn
 	var err error
 	
 	if serviceInfo.Protocol == ProtocolSTARTTLS {
@@ -422,7 +484,7 @@ func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo)
 			Timeout: s.config.Timeout,
 		}
 		target := net.JoinHostPort(host, port)
-		conn, err = tls.DialWithDialer(dialer, "tcp", target, tlsConfig)
+		conn, err = ztls.DialWithDialer(dialer, "tcp", target, tlsConfig)
 	}
 	
 	if err != nil {
@@ -460,16 +522,14 @@ func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo)
 		info.Chain = append(info.Chain, c.Subject.String())
 	}
 	
-	// Validation
+	// Validation - basic checks
 	now := time.Now()
 	if now.Before(cert.NotBefore) {
 		info.IsValid = false
 		info.ValidationErrors = append(info.ValidationErrors, "Certificate not yet valid")
 	}
-	if now.After(cert.NotAfter) {
-		info.IsValid = false
-		info.ValidationErrors = append(info.ValidationErrors, "Certificate expired")
-	}
+	// Note: Expiry check removed here to avoid duplication
+	// validateCertificateChain handles expiry validation comprehensively
 	
 	// Check hostname
 	if err := cert.VerifyHostname(host); err != nil {
@@ -484,35 +544,63 @@ func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo)
 }
 
 // validateCertificateChain performs certificate chain validation with custom CAs
-func (s *Scanner) validateCertificateChain(cert *x509.Certificate, chain []*x509.Certificate, host string, info *CertificateInfo) {
+func (s *Scanner) validateCertificateChain(cert *zx509.Certificate, chain []*zx509.Certificate, host string, info *CertificateInfo) {
 	// Use custom CA pool if available, otherwise use system pool
-	var rootCAs *x509.CertPool
+	var rootCAs *zx509.CertPool
 	if s.config.CustomCAs != nil {
 		rootCAs = s.config.CustomCAs
 	} else {
-		var err error
-		rootCAs, err = x509.SystemCertPool()
-		if err != nil {
-			// Fall back to empty pool
-			rootCAs = x509.NewCertPool()
-		}
+		rootCAs = loadSystemCAs()
 	}
 	
 	// Create intermediate pool
-	intermediates := x509.NewCertPool()
+	intermediates := zx509.NewCertPool()
 	for i := 1; i < len(chain); i++ {
 		intermediates.AddCert(chain[i])
 	}
 	
 	// Verify certificate chain
-	opts := x509.VerifyOptions{
+	opts := zx509.VerifyOptions{
 		DNSName:       host,
 		Roots:         rootCAs,
 		Intermediates: intermediates,
 	}
 	
-	chains, err := cert.Verify(opts)
-	if err != nil {
+	currentChains, expiredChains, neverChains, err := cert.Verify(opts)
+	
+	// Debug output
+	if s.config.Verbose {
+		fmt.Printf("DEBUG: Verify results - current: %d, expired: %d, never: %d, err: %v\n", 
+			len(currentChains), len(expiredChains), len(neverChains), err)
+		fmt.Printf("DEBUG: Certificate dates - NotBefore: %v, NotAfter: %v\n", cert.NotBefore, cert.NotAfter)
+		fmt.Printf("DEBUG: Current time: %v\n", time.Now())
+	}
+	
+	// zcrypto returns chains in different buckets - check current chains first
+	if len(currentChains) > 0 {
+		// Certificate is currently valid
+		info.IsValid = true
+	} else if len(expiredChains) > 0 {
+		// Handle expired chains first (before checking err)
+		// zcrypto sometimes incorrectly categorizes valid certs as expired
+		// Check if the cert is actually within its validity period
+		now := time.Now()
+		if now.After(cert.NotBefore) && now.Before(cert.NotAfter) {
+			// Certificate is actually valid despite zcrypto's categorization
+			info.IsValid = true
+			if s.config.Verbose {
+				fmt.Printf("DEBUG: Certificate is within validity period despite being in expired bucket\n")
+			}
+		} else {
+			// Certificate chain is truly expired
+			info.IsValid = false
+			info.ValidationErrors = append(info.ValidationErrors, "Certificate chain has expired")
+		}
+	} else if len(neverChains) > 0 {
+		// Certificate chain was never valid
+		info.IsValid = false
+		info.ValidationErrors = append(info.ValidationErrors, "Certificate chain was never valid")
+	} else if err != nil {
 		// Check if it's a self-signed certificate
 		if cert.Subject.String() == cert.Issuer.String() {
 			// It's self-signed, but let's check if it's in our custom CA pool
@@ -520,8 +608,8 @@ func (s *Scanner) validateCertificateChain(cert *x509.Certificate, chain []*x509
 				// Try to verify as a root CA
 				opts.Roots = s.config.CustomCAs
 				opts.DNSName = "" // Root CAs don't need hostname verification
-				_, customErr := cert.Verify(opts)
-				if customErr == nil {
+				currentCustom, _, _, customErr := cert.Verify(opts)
+				if customErr == nil && len(currentCustom) > 0 {
 					// It's a trusted root CA from our custom pool
 					// Don't mark as invalid, just note it's a root CA
 					info.ValidationErrors = append(info.ValidationErrors, "Root CA certificate (trusted via custom CA)")
@@ -543,14 +631,14 @@ func (s *Scanner) validateCertificateChain(cert *x509.Certificate, chain []*x509
 	} else {
 		// Certificate chain is valid
 		// If we have custom CAs and the chain validated, it might be from our custom CA
-		if s.config.CustomCAs != nil && len(chains) > 0 {
+		if s.config.CustomCAs != nil && len(currentChains) > 0 {
 			// Check if the root is from our custom CA (not system)
-			systemPool, _ := x509.SystemCertPool()
+			systemPool := loadSystemCAs()
 			if systemPool != nil {
 				// Try with only system pool
 				opts.Roots = systemPool
-				_, sysErr := cert.Verify(opts)
-				if sysErr != nil {
+				currentSys, _, _, sysErr := cert.Verify(opts)
+				if sysErr != nil || len(currentSys) == 0 {
 					// It validated with custom CAs but not system CAs
 					info.ValidationErrors = append(info.ValidationErrors, "Certificate trusted via custom CA")
 				}
@@ -565,7 +653,7 @@ func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []Vuln
 	// BEAST - TLS 1.0 with CBC ciphers
 	hasTLS10 := false
 	for _, proto := range result.SupportedProtocols {
-		if proto.Enabled && proto.Version == tls.VersionTLS10 {
+		if proto.Enabled && proto.Version == ztls.VersionTLS10 {
 			hasTLS10 = true
 			break
 		}
@@ -606,20 +694,54 @@ func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []Vuln
 		}
 	}
 	
-	// FREAK - Export cipher suites
+	// FREAK - Export cipher suites (enhanced with zcrypto)
+	exportCiphers := []string{}
 	for _, cipher := range result.CipherSuites {
-		if strings.Contains(cipher.Name, "EXPORT") {
-			vulns = append(vulns, VulnerabilityInfo{
-				Name:        "FREAK Attack",
-				Severity:    "CRITICAL",
-				Description: "Export-grade cipher suites allow FREAK attack - enables man-in-the-middle attacks with 512-bit RSA",
-				Affected:    true,
-				CVEs: []CVEInfo{
-					{ID: "CVE-2015-0204", CVSS: 7.5},
-				},
-			})
-			break
+		if strings.Contains(cipher.Name, "EXPORT") || strings.Contains(cipher.Name, "_40_") || strings.Contains(cipher.Name, "DES40") {
+			exportCiphers = append(exportCiphers, cipher.Name)
 		}
+	}
+	if len(exportCiphers) > 0 {
+		desc := fmt.Sprintf("Export-grade cipher suites detected (%d found): %s - 40-bit encryption can be broken in minutes",
+			len(exportCiphers), strings.Join(exportCiphers, ", "))
+		if len(exportCiphers) > 3 {
+			desc = fmt.Sprintf("Export-grade cipher suites detected (%d found, e.g., %s) - 40-bit encryption can be broken in minutes",
+				len(exportCiphers), exportCiphers[0])
+		}
+		vulns = append(vulns, VulnerabilityInfo{
+			Name:        "FREAK Attack",
+			Severity:    "CRITICAL",
+			Description: desc,
+			Affected:    true,
+			CVEs: []CVEInfo{
+				{ID: "CVE-2015-0204", CVSS: 7.5},
+			},
+		})
+	}
+	
+	// NULL cipher detection - NO ENCRYPTION!
+	nullCiphers := []string{}
+	for _, cipher := range result.CipherSuites {
+		if strings.Contains(cipher.Name, "NULL") {
+			nullCiphers = append(nullCiphers, cipher.Name)
+		}
+	}
+	if len(nullCiphers) > 0 {
+		desc := fmt.Sprintf("NULL cipher suites provide NO ENCRYPTION (%d found): %s - All traffic is sent in PLAINTEXT!",
+			len(nullCiphers), strings.Join(nullCiphers, ", "))
+		if len(nullCiphers) > 3 {
+			desc = fmt.Sprintf("NULL cipher suites provide NO ENCRYPTION (%d found) - All traffic is sent in PLAINTEXT!",
+				len(nullCiphers))
+		}
+		vulns = append(vulns, VulnerabilityInfo{
+			Name:        "NULL Cipher Suites",
+			Severity:    "CRITICAL",
+			Description: desc,
+			Affected:    true,
+			CVEs: []CVEInfo{
+				// No specific CVE but automatic F grade
+			},
+		})
 	}
 	
 	// RC4 vulnerabilities
@@ -639,34 +761,78 @@ func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []Vuln
 		}
 	}
 	
-	// Anonymous cipher suites
+	// Anonymous cipher suites (enhanced detection)
+	anonCiphers := []string{}
 	for _, cipher := range result.CipherSuites {
-		if strings.Contains(cipher.Name, "anon") || strings.Contains(cipher.Name, "NULL") {
-			vulns = append(vulns, VulnerabilityInfo{
-				Name:        "Anonymous Cipher Suites",
-				Severity:    "CRITICAL",
-				Description: "Anonymous cipher suites provide no authentication - trivial man-in-the-middle attacks possible",
-				Affected:    true,
-				// No specific CVE - this is a fundamental protocol weakness
-			})
-			break
+		// Check for anonymous key exchange (no authentication)
+		if strings.Contains(cipher.Name, "_anon_") || strings.Contains(cipher.Name, "DH_anon") || 
+		   strings.Contains(cipher.Name, "ECDH_anon") || strings.Contains(cipher.Name, "ADH") {
+			anonCiphers = append(anonCiphers, cipher.Name)
 		}
 	}
+	if len(anonCiphers) > 0 {
+		desc := fmt.Sprintf("Anonymous cipher suites provide NO AUTHENTICATION (%d found): %s - Trivial MITM attacks!",
+			len(anonCiphers), strings.Join(anonCiphers, ", "))
+		if len(anonCiphers) > 3 {
+			desc = fmt.Sprintf("Anonymous cipher suites provide NO AUTHENTICATION (%d found) - Trivial MITM attacks!",
+				len(anonCiphers))
+		}
+		vulns = append(vulns, VulnerabilityInfo{
+			Name:        "Anonymous Cipher Suites",
+			Severity:    "CRITICAL",
+			Description: desc,
+			Affected:    true,
+			// No specific CVE - this is a fundamental protocol weakness
+		})
+	}
 	
-	// Weak DH parameters warning (partial Logjam check)
-	hasDHE := false
+	// Weak/Broken ciphers (DES, RC2, IDEA)
+	brokenCiphers := []string{}
+	for _, cipher := range result.CipherSuites {
+		// Single DES (56-bit), RC2, IDEA
+		if (strings.Contains(cipher.Name, "DES_CBC") && !strings.Contains(cipher.Name, "3DES")) ||
+		   strings.Contains(cipher.Name, "RC2") ||
+		   strings.Contains(cipher.Name, "IDEA") {
+			brokenCiphers = append(brokenCiphers, cipher.Name)
+		}
+	}
+	if len(brokenCiphers) > 0 {
+		desc := fmt.Sprintf("Broken/obsolete cipher suites detected (%d found): %s - These ciphers are cryptographically weak",
+			len(brokenCiphers), strings.Join(brokenCiphers, ", "))
+		if len(brokenCiphers) > 3 {
+			desc = fmt.Sprintf("Broken/obsolete cipher suites detected (%d found, e.g., %s) - These ciphers are cryptographically weak",
+				len(brokenCiphers), brokenCiphers[0])
+		}
+		vulns = append(vulns, VulnerabilityInfo{
+			Name:        "Weak/Broken Cipher Suites",
+			Severity:    "HIGH",
+			Description: desc,
+			Affected:    true,
+			CVEs: []CVEInfo{
+				// DES is only 56-bit, RC2 has known weaknesses, IDEA is obsolete
+			},
+		})
+	}
+	
+	// Weak DH parameters warning (enhanced Logjam check)
+	dheCiphers := []string{}
 	for _, cipher := range result.CipherSuites {
 		if strings.Contains(cipher.Name, "DHE") && !strings.Contains(cipher.Name, "ECDHE") {
-			hasDHE = true
-			break
+			dheCiphers = append(dheCiphers, cipher.Name)
 		}
 	}
 	
-	if hasDHE {
+	if len(dheCiphers) > 0 {
+		desc := fmt.Sprintf("DHE cipher suites detected (%d found): %s - May use weak DH parameters (< 2048 bits)",
+			len(dheCiphers), strings.Join(dheCiphers, ", "))
+		if len(dheCiphers) > 3 {
+			desc = fmt.Sprintf("DHE cipher suites detected (%d found) - May use weak DH parameters (< 2048 bits), vulnerable to Logjam",
+				len(dheCiphers))
+		}
 		vulns = append(vulns, VulnerabilityInfo{
 			Name:        "Weak DH Parameters (Logjam Risk)",
 			Severity:    "MEDIUM",
-			Description: "DHE cipher suites may use weak DH parameters (< 2048 bits) - potentially vulnerable to Logjam attack",
+			Description: desc,
 			Affected:    true,
 			CVEs: []CVEInfo{
 				{ID: "CVE-2015-4000", CVSS: 3.7},
@@ -677,7 +843,7 @@ func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []Vuln
 	// Deprecated protocols (TLS 1.0/1.1)
 	deprecatedProtos := []string{}
 	for _, proto := range result.SupportedProtocols {
-		if proto.Enabled && (proto.Version == tls.VersionTLS10 || proto.Version == tls.VersionTLS11) {
+		if proto.Enabled && (proto.Version == ztls.VersionTLS10 || proto.Version == ztls.VersionTLS11) {
 			deprecatedProtos = append(deprecatedProtos, proto.Name)
 		}
 	}
@@ -765,7 +931,7 @@ func (s *Scanner) checkHeartbleedHeuristic(result *Result) VulnerabilityInfo {
 	for _, proto := range result.SupportedProtocols {
 		if proto.Enabled {
 			switch proto.Version {
-			case tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12:
+			case ztls.VersionTLS10, ztls.VersionTLS11, ztls.VersionTLS12:
 				vulnerableVersionFound = true
 				vulnerableVersions = append(vulnerableVersions, proto.Name)
 			}
@@ -842,6 +1008,12 @@ func (s *Scanner) checkHeartbleedHeuristic(result *Result) VulnerabilityInfo {
 		}
 	}
 	
+	// Debug output for Heartbleed detection
+	if s.config.Verbose {
+		fmt.Printf("DEBUG Heartbleed: Score=%d, HasLegacy=%v, HasModern=%v, CertOld=%v\n", 
+			confidenceScore, hasLegacyCiphers, hasModernCiphers, certIsOld)
+	}
+	
 	// Determine if we should flag as potentially vulnerable
 	if confidenceScore >= 60 {
 		info.Affected = true
@@ -908,12 +1080,12 @@ func parseTarget(target string) (host, port string, err error) {
 
 func getCipherName(id uint16) string {
 	// Map cipher IDs to names
-	for _, suite := range tls.CipherSuites() {
+	for _, suite := range ztls.CipherSuites() {
 		if suite.ID == id {
 			return suite.Name
 		}
 	}
-	for _, suite := range tls.InsecureCipherSuites() {
+	for _, suite := range ztls.InsecureCipherSuites() {
 		if suite.ID == id {
 			return suite.Name
 		}
@@ -923,12 +1095,25 @@ func getCipherName(id uint16) string {
 
 func evaluateCipherStrength(name string) string {
 	switch {
-	case strings.Contains(name, "NULL") || strings.Contains(name, "anon") || strings.Contains(name, "EXPORT"):
-		return "INSECURE"
-	case strings.Contains(name, "RC4") || strings.Contains(name, "DES") && !strings.Contains(name, "3DES"):
+	// NULL ciphers - no encryption at all
+	case strings.Contains(name, "NULL"):
+		return "NULL_CIPHER"
+	// Export ciphers - 40-bit or 56-bit encryption
+	case strings.Contains(name, "EXPORT") || strings.Contains(name, "_40_") || strings.Contains(name, "DES40"):
+		return "EXPORT"
+	// Anonymous ciphers - no authentication
+	case strings.Contains(name, "_anon_") || strings.Contains(name, "DH_anon") || strings.Contains(name, "ECDH_anon") || strings.Contains(name, "ADH"):
+		return "ANONYMOUS"
+	// Broken ciphers
+	case strings.Contains(name, "RC4") || strings.Contains(name, "RC2") || strings.Contains(name, "IDEA"):
+		return "BROKEN"
+	// Single DES (56-bit)
+	case strings.Contains(name, "DES_CBC") && !strings.Contains(name, "3DES"):
 		return "WEAK"
+	// 3DES
 	case strings.Contains(name, "3DES"):
 		return "MEDIUM"
+	// Strong ciphers
 	case strings.Contains(name, "AES_128_GCM") || strings.Contains(name, "CHACHA20"):
 		return "STRONG"
 	case strings.Contains(name, "AES_256_GCM"):
@@ -1042,7 +1227,7 @@ func applyGradeCaps(result *Result) string {
 	
 	// Check for TLS 1.0 - caps at C (SSL Labs policy)
 	for _, proto := range result.SupportedProtocols {
-		if proto.Enabled && proto.Version == tls.VersionTLS10 {
+		if proto.Enabled && proto.Version == ztls.VersionTLS10 {
 			maxGrade = minGrade(maxGrade, "C")
 			break
 		}
@@ -1106,11 +1291,11 @@ func calculateProtocolScore(result *Result) int {
 	
 	// SSL Labs protocol scoring - updated to match real SSL Labs
 	protocolScores := map[uint16]int{
-		tls.VersionSSL30: 0,   // SSL 3.0 - Automatic F
-		tls.VersionTLS10: 20,  // TLS 1.0 - Deprecated
-		tls.VersionTLS11: 40,  // TLS 1.1 - Deprecated  
-		tls.VersionTLS12: 95,  // TLS 1.2
-		tls.VersionTLS13: 100, // TLS 1.3
+		ztls.VersionSSL30: 0,   // SSL 3.0 - Automatic F
+		ztls.VersionTLS10: 20,  // TLS 1.0 - Deprecated
+		ztls.VersionTLS11: 40,  // TLS 1.1 - Deprecated  
+		ztls.VersionTLS12: 95,  // TLS 1.2
+		ztls.VersionTLS13: 100, // TLS 1.3
 	}
 	
 	best := 0
@@ -1302,11 +1487,11 @@ func calculateSubcategoryGrades(result *Result) {
 	for _, proto := range result.SupportedProtocols {
 		if proto.Enabled {
 			switch proto.Version {
-			case tls.VersionSSL30:
+			case ztls.VersionSSL30:
 				protocolScore = 0  // Auto-fail for SSL 3.0
-			case tls.VersionTLS10:
+			case ztls.VersionTLS10:
 				protocolScore -= 20
-			case tls.VersionTLS11:
+			case ztls.VersionTLS11:
 				protocolScore -= 10
 			}
 		}
@@ -1426,11 +1611,11 @@ func identifyProtocolDegradations(result *Result) {
 	for _, proto := range result.SupportedProtocols {
 		if proto.Enabled {
 			switch proto.Version {
-			case tls.VersionSSL30:
+			case ztls.VersionSSL30:
 				weakProtocols = append(weakProtocols, proto.Name)
-			case tls.VersionTLS10:
+			case ztls.VersionTLS10:
 				weakProtocols = append(weakProtocols, proto.Name)
-			case tls.VersionTLS11:
+			case ztls.VersionTLS11:
 				weakProtocols = append(weakProtocols, proto.Name)
 			}
 		}

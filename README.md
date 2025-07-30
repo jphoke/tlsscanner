@@ -2,6 +2,44 @@
 
 Lightning-fast TLS/SSL security scanner with web UI. Get comprehensive security analysis in seconds, not minutes.
 
+## Background
+
+This project began as a learning exercise to explore Claude Code's capabilities and gain hands-on experience with Go. What started as a simple goal to build a faster TLS scanner for security testing quickly evolved into something more comprehensive.
+
+The traditional bash-based TLS scanners were painfully slow, often taking minutes to complete basic scans. Security teams need tools that match the pace of modern development - fast, API-driven, and deployable anywhere. This scanner delivers sub-second results while providing deeper analysis than most alternatives.
+
+Built with modern security teams in mind, TLS Scanner Portal offers:
+- **Speed**: 100x faster than traditional scanners - get results in milliseconds, not minutes
+- **Depth**: Enhanced vulnerability detection using zcrypto for research-grade analysis
+- **Integration**: REST API and WebSocket support for seamless automation
+- **Deployment**: Docker-based architecture runs anywhere your infrastructure lives
+
+## ⚠️ Critical Security Notice
+
+**This tool uses zcrypto, a research-focused library that intentionally disables security features.**
+
+**DO NOT use this codebase for:**
+- ❌ **Actual TLS communications or connections**
+- ❌ **Building production services that handle TLS**
+- ❌ **Any purpose requiring cryptographic security**
+
+The zcrypto library has safety features removed to enable testing of broken, obsolete, and insecure TLS configurations. This makes it perfect for security scanning but completely unsuitable for secure communications.
+
+## Important: Defensive Security Only
+
+This tool is designed exclusively for:
+- ✅ Security compliance scanning
+- ✅ Internal infrastructure auditing  
+- ✅ Identifying misconfigurations before attackers do
+- ✅ Monitoring certificate health and expiration
+
+**DO NOT** use this tool for:
+- ❌ Scanning infrastructure you don't own or have permission to test
+- ❌ Exploiting discovered vulnerabilities
+- ❌ Any malicious or unauthorized purposes
+
+This is a defensive security tool - think "security team's best friend," not "hacker's toolkit."
+
 ## Quick Start
 
 ```bash
@@ -90,6 +128,21 @@ The scanner automatically detects STARTTLS for mail ports and trusts certificate
 - [Vulnerability Detection](docs/VULNERABILITIES.md) - How vulnerabilities are detected
 - [Contributing](docs/CONTRIBUTING.md) - Help improve the scanner
 
+## Acknowledgements
+
+This project uses the following open source libraries:
+
+- [zcrypto](https://github.com/zmap/zcrypto) - A research-focused fork of Go's crypto libraries that enables scanning of legacy and non-compliant TLS configurations. Licensed under Apache 2.0.
+- [ZMap Project](https://zmap.io/) - The team behind zcrypto and other excellent security research tools.
+
+
+Special thanks to the security research community for their work in identifying and documenting TLS vulnerabilities.
+
+## Other Thanks 
+- [Anthropic](https://github.com/anthropics) - Seriously though - [Claude Code](https://github.com/anthropics/claude-code) is a game changer 
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
+
+This project includes third-party libraries. See [THIRD-PARTY-LICENSES](THIRD-PARTY-LICENSES) for details.

@@ -36,7 +36,7 @@ The fastest way to get started (covered in README):
 
 ```bash
 git clone https://github.com/jphoke/tlsscanner
-cd tlsscanner/tlsscanner-portal
+cd tlsscanner
 docker compose up -d
 ```
 
@@ -79,7 +79,7 @@ Download and build from the latest release:
 # Download latest release source
 wget https://github.com/jphoke/tlsscanner/archive/refs/tags/v1.0.1.tar.gz
 tar -xzf v1.0.1.tar.gz
-cd tlsscanner-1.0.1/tlsscanner-portal
+cd tlsscanner-1.0.1
 
 # Build the scanner
 go build -o tlsscanner ./cmd/scanner
@@ -96,7 +96,7 @@ tlsscanner -target example.com
 ```bash
 # Clone repository
 git clone https://github.com/jphoke/tlsscanner
-cd tlsscanner/tlsscanner-portal
+cd tlsscanner
 
 # Build scanner
 go build -o tlsscanner ./cmd/scanner
@@ -128,7 +128,7 @@ tlsscanner -target internal.company.com -ca-path ./custom-ca
 ```bash
 cd /opt
 sudo git clone https://github.com/jphoke/tlsscanner
-cd /opt/tlsscanner/tlsscanner-portal
+cd /opt/tlsscanner
 ```
 
 2. **Configure environment:**
@@ -256,7 +256,7 @@ Create a cron job for automatic cleanup:
 crontab -e
 
 # Add daily cleanup (runs at 2 AM)
-0 2 * * * cd /opt/tlsscanner/tlsscanner-portal && ./scripts/docker-db-cleanup.sh 30 >> /var/log/tlsscanner-cleanup.log 2>&1
+0 2 * * * cd /opt/tlsscanner && ./scripts/docker-db-cleanup.sh 30 >> /var/log/tlsscanner-cleanup.log 2>&1
 ```
 
 ### Manual Database Operations
@@ -282,7 +282,7 @@ VACUUM FULL ANALYZE;
 1. **Create backup script:**
 ```bash
 #!/bin/bash
-# /opt/tlsscanner/tlsscanner-portal/backup.sh
+# /opt/tlsscanner/backup.sh
 
 BACKUP_DIR="/backups/tlsscanner"
 DATE=$(date +%Y%m%d_%H%M%S)
@@ -305,9 +305,9 @@ echo "Backup completed: $BACKUP_DIR/db_$DATE.sql.gz"
 
 2. **Schedule backups:**
 ```bash
-chmod +x /opt/tlsscanner/tlsscanner-portal/backup.sh
+chmod +x /opt/tlsscanner/backup.sh
 crontab -e
-# Add: 0 3 * * * /opt/tlsscanner/tlsscanner-portal/backup.sh
+# Add: 0 3 * * * /opt/tlsscanner/backup.sh
 ```
 
 ### Recovery
@@ -318,7 +318,7 @@ gunzip < /backups/tlsscanner/db_20240101_030000.sql.gz | \
   docker compose exec -T postgres psql -U postgres tlsscanner
 
 # Restore configuration
-cd /opt/tlsscanner/tlsscanner-portal
+cd /opt/tlsscanner
 tar -xzf /backups/tlsscanner/config_20240101_030000.tar.gz
 ```
 

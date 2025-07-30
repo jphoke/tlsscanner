@@ -103,7 +103,11 @@ github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:a1lVb/DtPvCB8fslRZhAngC2+aY1QWCk3Cedj/Gdt08=
 github.com/ugorji/go/codec v1.3.0 h1:Qd2W2sQawAfG8XSvzwhBeoGq71zXOC/Q1E9y/wUcsUA=
 github.com/ugorji/go/codec v1.3.0/go.mod h1:pRBVtBSKl77K30Bv8R2P+cLSGaTtex6fsA2Wjqmfxj4=
+github.com/weppos/publicsuffix-go v0.40.3-0.20250708083804-25ff8f86d8b3 h1:+1HZJLN3Gx/vHO2Bss5b4u1HHMQ+yPKATjCj5sBAGcM=
+github.com/weppos/publicsuffix-go v0.40.3-0.20250708083804-25ff8f86d8b3/go.mod h1:Efaen92I7hksG9EA+bsuHPWscS8ePs86CXxNFfG2cG4=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
+github.com/zmap/zcrypto v0.0.0-20250710172053-7835e31ca584 h1:FzOi860ixlhQ5SodERONhXklDZLX1T/u4fwH8V/9K98=
+github.com/zmap/zcrypto v0.0.0-20250710172053-7835e31ca584/go.mod h1:n0u7W+CyRA4475yuig+KsD/QwboF+aK5VVnNenc+Q6w=
 golang.org/x/arch v0.19.0 h1:LmbDQUodHThXE+htjrnmVD73M//D9GTH6wFZjyDkjyU=
 golang.org/x/arch v0.19.0/go.mod h1:bdwinDaKcfZUGpH09BB7ZmOfhalA8lQdzl62l8gGWsk=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=

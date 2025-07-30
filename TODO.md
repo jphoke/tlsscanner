@@ -67,6 +67,15 @@
 
 ## 🚀 High Priority - Next Features
 
+### zcrypto Migration Testing (Branch: feature/zcrypto-migration)
+- [x] Successfully migrated from crypto/tls to zcrypto
+- [ ] Test export cipher enumeration capabilities
+- [ ] Verify NULL cipher detection works
+- [ ] Test browser-specific cipher suite lists
+- [ ] Benchmark performance vs standard crypto/tls
+- [ ] Document any API differences or quirks found
+- [ ] Consider merging to main after thorough testing
+
 ### Comments Field for Scans
 - [x] Add comments field to scan records (0-100 chars)
   - [x] Database schema update: ALTER TABLE scans ADD COLUMN comments VARCHAR(100)
@@ -145,7 +154,7 @@
 ### Vulnerability Detection
 - [x] BEAST (CVE-2011-3389) - TLS 1.0 with CBC ciphers
 - [x] SWEET32 (CVE-2016-2183) - 3DES birthday attacks
-- [x] FREAK (CVE-2015-0204) - Export-grade ciphers
+- [x] FREAK (CVE-2015-0204) - Export-grade ciphers (enhanced with zcrypto)
 - [x] RC4 weaknesses (CVE-2013-2566, CVE-2015-2808)
 - [x] Anonymous cipher suites detection
 - [x] Weak DH parameters warning (Logjam risk)
@@ -155,7 +164,17 @@
 - [ ] CRIME/BREACH compression attacks
 - [ ] ROBOT (CVE-2017-13099)
 - [ ] Full Logjam detection with DH parameter size
-- [ ] SSL v2/v3 via OpenSSL
+- [x] SSL v3 detection code ready (but zcrypto blocks connections)
+
+### New Features Enabled by zcrypto
+- [ ] **Export Cipher Enumeration** - Test and enumerate all export-grade ciphers
+- [ ] **NULL Cipher Detection** - Identify and test servers with no encryption
+- [ ] **Browser Cipher Suite Testing** - Use Chrome/Firefox/Safari cipher lists
+- [ ] **Enhanced FREAK Detection** - More accurate with actual export cipher presence
+- [ ] **Certificate JSON Export** - Use zcrypto's JSON serialization
+- [ ] **DH Parameter Extraction** - Get actual DH sizes from handshake
+- [ ] **Extended Handshake Analysis** - Access to handshake messages
+- [ ] **Broken Certificate Handling** - Test against malformed certificates
 
 ### Advanced Analysis
 - [ ] Banner detection and version extraction

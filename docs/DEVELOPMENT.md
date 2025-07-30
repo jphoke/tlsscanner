@@ -26,7 +26,7 @@ This guide covers the architecture, building from source, and key development wo
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   Web UI        │────▶│   REST API      │────▶│  Scanner Core   │
-│  (Vanilla JS)   │     │  (Gin/Go)       │     │  (Go crypto/tls)│
+│  (Vanilla JS)   │     │  (Gin/Go)       │     │    (zcrypto)    │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                 │                         │
                                 ▼                         ▼

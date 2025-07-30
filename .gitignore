@@ -49,6 +49,7 @@ postgres_data/
 Screenshot*
 
 CLAUDE.md
+
 .claude/
 # Custom CA certificates (user-specific)
 custom-ca/*.crt

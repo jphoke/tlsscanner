@@ -2,7 +2,7 @@ package scanner
 
 import (
 	"bufio"
-	"crypto/tls"
+	ztls "github.com/zmap/zcrypto/tls"
 	"fmt"
 	"net"
 	"strings"
@@ -205,7 +205,7 @@ func GetStartTLSNegotiator(protocol string) (StartTLSNegotiator, error) {
 }
 
 // DialWithStartTLS establishes a TLS connection using STARTTLS
-func DialWithStartTLS(host, port, protocol string, config *tls.Config, timeout time.Duration) (*tls.Conn, error) {
+func DialWithStartTLS(host, port, protocol string, config *ztls.Config, timeout time.Duration) (*ztls.Conn, error) {
 	// First establish plain TCP connection
 	dialer := &net.Dialer{
 		Timeout: timeout,
@@ -230,7 +230,7 @@ func DialWithStartTLS(host, port, protocol string, config *tls.Config, timeout t
 	}
 	
 	// Upgrade to TLS
-	tlsConn := tls.Client(conn, config)
+	tlsConn := ztls.Client(conn, config)
 	if err := tlsConn.Handshake(); err != nil {
 		tlsConn.Close()
 		return nil, fmt.Errorf("TLS handshake failed: %w", err)

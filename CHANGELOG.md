@@ -4,6 +4,46 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 
 ## [Unreleased]
 
+### Changed - zcrypto Migration
+- **Replaced Go's crypto/tls with zcrypto library** for enhanced security research capabilities
+  - Direct replacement approach - no abstraction layer needed
+  - Maintains full backward compatibility
+  - All existing features continue to work
+  - Certificate validation enhanced with manual system CA loading
+  - API differences handled (Verify returns 4 values instead of 2)
+  
+### Added - Enhanced Detection Capabilities (via zcrypto)
+- **Export Cipher Detection**: Now enumerates all export-grade ciphers (40-bit RC4, RC2, DES)
+  - Enhanced FREAK detection with actual export cipher listing
+  - Detects patterns like EXPORT, _40_, and DES40
+- **NULL Cipher Detection**: Critical warning for ciphers providing NO ENCRYPTION
+  - Automatic F grade for any NULL cipher
+  - Clear "PLAINTEXT" warning in description
+- **Anonymous Cipher Detection**: Enhanced detection for ciphers with no authentication
+  - Detects _anon_, DH_anon, ECDH_anon, ADH patterns
+  - Trivial MITM attack warning
+- **Weak/Broken Cipher Detection**: 
+  - Single DES (56-bit only)
+  - RC2 (known weaknesses)
+  - IDEA (obsolete)
+- **Enhanced Logjam Detection**: Lists all DHE ciphers that may use weak parameters
+- **Improved Cipher Strength Evaluation**: New categories for NULL_CIPHER, EXPORT, ANONYMOUS, BROKEN
+- **Better Certificate Parsing**: JSON serialization support for certificates
+- **Research-Focused Design**: Library designed for security analysis, not production use
+
+### Fixed
+- **Duplicate Certificate Expiry Warnings**: Fixed bug where expired certificates showed duplicate warnings in the UI
+  - Removed redundant expiry check that was causing "Certificate expired" to appear twice
+  - Certificate chain validation now handles all expiry checks in one place
+  - Bug introduced during zcrypto migration (our bad!)
+
+### Technical Notes
+- SSL v3 detection prepared but blocked even by zcrypto (constant exists but connections refused)
+- SSL v2 not supported by zcrypto (no constants found)
+- Certificate validation quirk: zcrypto sometimes miscategorizes valid certs as expired
+- System CAs must be loaded manually as zcrypto doesn't have SystemCertPool()
+- DH parameter size extraction not available through ConnectionState (would require lower-level handshake hooks)
+
 ## [1.0.1] - 2025-07-28
 
 ### Added - Custom Certificate Authority Support

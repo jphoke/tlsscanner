@@ -258,7 +258,9 @@ func main() {
 	port := "8080"
 	
 	log.Printf("Starting API server on port %s", port)
-	r.Run(":" + port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
 
 // createScan godoc
@@ -693,19 +695,25 @@ func (s *Server) getStats(c *gin.Context) {
 	}
 	
 	// Get total scans
-	s.db.QueryRow("SELECT COUNT(*) FROM scans").Scan(&stats.TotalScans)
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM scans").Scan(&stats.TotalScans); err != nil {
+		log.Printf("Error getting total scans count: %v", err)
+	}
 	
 	// Get scans today
-	s.db.QueryRow(`
+	if err := s.db.QueryRow(`
 		SELECT COUNT(*) FROM scans 
 		WHERE created_at >= CURRENT_DATE
-	`).Scan(&stats.ScansToday)
+	`).Scan(&stats.ScansToday); err != nil {
+		log.Printf("Error getting today's scan count: %v", err)
+	}
 	
 	// Get queue length
-	s.db.QueryRow(`
+	if err := s.db.QueryRow(`
 		SELECT COUNT(*) FROM scan_queue 
 		WHERE status = 'pending'
-	`).Scan(&stats.QueueLength)
+	`).Scan(&stats.QueueLength); err != nil {
+		log.Printf("Error getting queue length: %v", err)
+	}
 	
 	// Calculate average grade
 	var validGrades []string
@@ -852,7 +860,9 @@ func (s *Server) worker(id int) {
 		}
 		
 		// Update scan status
-		s.db.Exec("UPDATE scans SET status = 'scanning' WHERE id = $1", scanID)
+		if _, err := s.db.Exec("UPDATE scans SET status = 'scanning' WHERE id = $1", scanID); err != nil {
+			log.Printf("Worker %d: Error updating scan status to 'scanning': %v", id, err)
+		}
 		
 		// Perform scan
 		log.Printf("Worker %d: Scanning %s", id, target)
@@ -860,11 +870,13 @@ func (s *Server) worker(id int) {
 		
 		if err != nil {
 			// Mark as failed
-			s.db.Exec(`
+			if _, dbErr := s.db.Exec(`
 				UPDATE scans 
 				SET status = 'failed', error_message = $2, updated_at = NOW()
 				WHERE id = $1
-			`, scanID, err.Error())
+			`, scanID, err.Error()); dbErr != nil {
+				log.Printf("Worker %d: Error updating failed scan status: %v", id, dbErr)
+			}
 		} else {
 			// Save results
 			resultJSON, _ := json.Marshal(result)
@@ -885,7 +897,7 @@ func (s *Server) worker(id int) {
 			}
 			
 			// Update main scan record
-			s.db.Exec(`
+			if _, err := s.db.Exec(`
 				UPDATE scans 
 				SET status = 'completed', 
 				    service_type = $2,
@@ -915,34 +927,47 @@ func (s *Server) worker(id int) {
 			   result.ProtocolGrade, result.ProtocolScore,
 			   result.CertificateGrade, result.CertificateScore,
 			   resultJSON, int(result.Duration.Milliseconds()), result.IP,
-			   certExpiresAt, certDaysRemaining, certIssuer, certKeyType, certKeySize)
+			   certExpiresAt, certDaysRemaining, certIssuer, certKeyType, certKeySize); err != nil {
+				log.Printf("Worker %d: CRITICAL ERROR - Failed to save scan results: %v", id, err)
+				// Try to at least mark it as failed
+				if _, dbErr := s.db.Exec(`UPDATE scans SET status = 'failed', error_message = $2 WHERE id = $1`, 
+					scanID, fmt.Sprintf("Failed to save results: %v", err)); dbErr != nil {
+					log.Printf("Worker %d: CRITICAL - Failed to update status after save failure: %v", id, dbErr)
+				}
+			}
 			
 			// Save vulnerabilities
 			for _, vuln := range result.Vulnerabilities {
 				// Convert CVEs to JSON
 				cveJSON, _ := json.Marshal(vuln.CVEs)
 				
-				s.db.Exec(`
+				if _, err := s.db.Exec(`
 					INSERT INTO scan_vulnerabilities (scan_id, vulnerability_name, severity, description, affected, cve_data)
 					VALUES ($1, $2, $3, $4, $5, $6)
-				`, scanID, vuln.Name, vuln.Severity, vuln.Description, vuln.Affected, cveJSON)
+				`, scanID, vuln.Name, vuln.Severity, vuln.Description, vuln.Affected, cveJSON); err != nil {
+					log.Printf("Worker %d: Error saving vulnerability %s: %v", id, vuln.Name, err)
+				}
 			}
 			
 			// Save grade degradations
 			for _, deg := range result.GradeDegradations {
-				s.db.Exec(`
+				if _, err := s.db.Exec(`
 					INSERT INTO scan_grade_degradations (scan_id, category, issue, details, impact, remediation)
 					VALUES ($1, $2, $3, $4, $5, $6)
-				`, scanID, deg.Category, deg.Issue, deg.Details, deg.Impact, deg.Remediation)
+				`, scanID, deg.Category, deg.Issue, deg.Details, deg.Impact, deg.Remediation); err != nil {
+					log.Printf("Worker %d: Error saving grade degradation: %v", id, err)
+				}
 			}
 			
 			// Save weak protocols
 			for _, proto := range result.SupportedProtocols {
 				if proto.Name == "TLS 1.0" || proto.Name == "TLS 1.1" || proto.Name == "SSL 3.0" || proto.Name == "SSL 2.0" {
-					s.db.Exec(`
+					if _, err := s.db.Exec(`
 						INSERT INTO scan_weak_protocols (scan_id, protocol_name, protocol_version)
 						VALUES ($1, $2, $3)
-					`, scanID, proto.Name, proto.Version)
+					`, scanID, proto.Name, proto.Version); err != nil {
+						log.Printf("Worker %d: Error saving weak protocol %s: %v", id, proto.Name, err)
+					}
 				}
 			}
 			
@@ -953,16 +978,20 @@ func (s *Server) worker(id int) {
 				isMissingPFS := !cipher.Forward && cipher.Protocol != "TLS 1.3"
 				
 				if isWeak || isMissingPFS {
-					s.db.Exec(`
+					if _, err := s.db.Exec(`
 						INSERT INTO scan_weak_ciphers (scan_id, cipher_id, cipher_name, has_forward_secrecy, strength, protocol)
 						VALUES ($1, $2, $3, $4, $5, $6)
-					`, scanID, cipher.ID, cipher.Name, cipher.Forward, cipher.Strength, cipher.Protocol)
+					`, scanID, cipher.ID, cipher.Name, cipher.Forward, cipher.Strength, cipher.Protocol); err != nil {
+						log.Printf("Worker %d: Error saving weak cipher %s: %v", id, cipher.Name, err)
+					}
 				}
 			}
 		}
 		
 		// Remove from queue
-		s.db.Exec("DELETE FROM scan_queue WHERE scan_id = $1", scanID)
+		if _, err := s.db.Exec("DELETE FROM scan_queue WHERE scan_id = $1", scanID); err != nil {
+			log.Printf("Worker %d: Error removing scan from queue: %v", id, err)
+		}
 		
 		log.Printf("Worker %d: Completed scan %s", id, scanID)
 	}

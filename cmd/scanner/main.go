@@ -46,7 +46,9 @@ func main() {
 	if *jsonOutput {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
-		encoder.Encode(result)
+		if err := encoder.Encode(result); err != nil {
+			log.Fatalf("Error encoding JSON output: %v", err)
+		}
 	} else {
 		printTextResult(result)
 	}

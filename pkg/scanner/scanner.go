@@ -1,10 +1,16 @@
 package scanner
 
 import (
+	"crypto/dsa"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rsa"
 	ztls "github.com/zmap/zcrypto/tls"
 	zx509 "github.com/zmap/zcrypto/x509"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"path/filepath"
 	"strings"
@@ -144,6 +150,8 @@ func loadSystemCAs() *zx509.CertPool {
 	
 	loaded := false
 	for _, path := range systemCertPaths {
+		// #nosec G304 - Reading system CA certificates from well-known hardcoded paths
+		// These are standard system certificate locations, not user-controlled input
 		if certData, err := ioutil.ReadFile(path); err == nil {
 			if caPool.AppendCertsFromPEM(certData) {
 				loaded = true
@@ -169,6 +177,8 @@ func loadSystemCAs() *zx509.CertPool {
 			files = append(files, pemFiles...)
 			
 			for _, file := range files {
+				// #nosec G304 - Reading CA certificates from standard system directories
+				// Files are filtered by glob patterns (*.crt, *.pem) in known system locations
 				if certData, err := ioutil.ReadFile(file); err == nil {
 					caPool.AppendCertsFromPEM(certData)
 					loaded = true
@@ -203,6 +213,9 @@ func loadCustomCAs(caPath string, verbose bool) *zx509.CertPool {
 		}
 		
 		for _, file := range files {
+			// #nosec G304 - Reading custom CA certificates from user-specified directory
+			// This is the intended functionality - users need to provide custom CAs for internal certificates
+			// Files are filtered by extension (*.crt, *.pem, *.cer, *.ca) to ensure only certificate files
 			certData, err := ioutil.ReadFile(file)
 			if err != nil {
 				if verbose {
@@ -512,9 +525,28 @@ func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo)
 	}
 	
 	// Key information
-	if cert.PublicKeyAlgorithm == cert.PublicKeyAlgorithm {
-		info.KeyType = cert.PublicKeyAlgorithm.String()
-		// Key size calculation would go here based on key type
+	info.KeyType = cert.PublicKeyAlgorithm.String()
+	
+	// Extract key size based on key type
+	switch pub := cert.PublicKey.(type) {
+	case *rsa.PublicKey:
+		info.KeySize = pub.N.BitLen()
+	case *zx509.AugmentedECDSA:
+		// zcrypto wraps ECDSA keys in AugmentedECDSA
+		if pub.Pub != nil {
+			extractECDSAKeySize(pub.Pub, info, s.config.Verbose)
+		}
+	case *ecdsa.PublicKey:
+		extractECDSAKeySize(pub, info, s.config.Verbose)
+	case ed25519.PublicKey:
+		info.KeySize = 256 // Ed25519 is always 256 bits
+	case *dsa.PublicKey:
+		info.KeySize = pub.P.BitLen() // DSA key size is the bit length of P
+	default:
+		// Unknown key type, size remains 0
+		if s.config.Verbose {
+			log.Printf("Unknown public key type: %T", cert.PublicKey)
+		}
 	}
 	
 	// Build certificate chain
@@ -1780,5 +1812,35 @@ func identifyCertificateDegradations(result *Result) {
 			Impact:      "Automatic F grade",
 			Remediation: "MD5 is cryptographically broken. Use SHA-256 or stronger.",
 		})
+	}
+}
+
+// extractECDSAKeySize extracts the key size from an ECDSA public key
+func extractECDSAKeySize(pub *ecdsa.PublicKey, info *CertificateInfo, verbose bool) {
+	if pub.Curve == nil {
+		if verbose {
+			log.Printf("Warning: ECDSA key with nil curve")
+		}
+		return
+	}
+	
+	// Check for standard curves
+	switch pub.Curve {
+	case elliptic.P224():
+		info.KeySize = 224
+	case elliptic.P256():
+		info.KeySize = 256
+	case elliptic.P384():
+		info.KeySize = 384
+	case elliptic.P521():
+		info.KeySize = 521
+	default:
+		// Non-standard curve, get size from parameters
+		if pub.Curve.Params() != nil {
+			info.KeySize = pub.Curve.Params().BitSize
+			if verbose {
+				log.Printf("ECDSA non-standard curve: %s, size: %d", pub.Curve.Params().Name, info.KeySize)
+			}
+		}
 	}
 }

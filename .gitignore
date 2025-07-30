@@ -58,3 +58,28 @@ custom-ca/*.cer
 custom-ca/*.ca
 # But keep the README
 !custom-ca/README.md
+
+
+# Certificates and keys
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Config files that might contain secrets
+config.json
+config.yaml
+config.yml
+settings.json
+
+# Backup files that might contain sensitive data
+*.bak
+*.backup
+*.old
+*.orig
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3

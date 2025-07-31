@@ -44,7 +44,7 @@ This is a defensive security tool - think "security team's best friend," not "ha
 
 ```bash
 git clone https://github.com/jphoke/tlsscanner
-cd tlsscanner/tlsscanner-portal
+cd tlsscanner
 docker compose up -d
 ```
 

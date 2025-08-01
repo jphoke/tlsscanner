@@ -12,6 +12,7 @@ This document explains how the TLS Scanner Portal detects and reports various TL
   - [RC4 Weaknesses](#rc4-weaknesses)
   - [Anonymous Ciphers](#anonymous-ciphers)
   - [Weak DH Parameters](#weak-dh-parameters)
+  - [ROBOT Attack](#robot-attack)
   - [Heartbleed](#heartbleed)
 - [Severity Levels](#severity-levels)
 - [Grade Impact](#grade-impact)
@@ -157,6 +158,34 @@ Many servers use weak (≤1024-bit) DH parameters, though we can't determine the
 
 ---
 
+### ROBOT Attack
+**CVE-2017-13099, CVE-2017-6168 | CVSS 5.9 | Severity: HIGH**
+
+#### Detection Method
+The scanner identifies RSA key exchange cipher suites that are vulnerable to Bleichenbacher's attack variations.
+
+#### Detection Logic
+```
+IF (cipher starts with "TLS_RSA_WITH_" or "SSL_RSA_WITH_") THEN
+    Mark as vulnerable to ROBOT
+```
+
+#### Why This Matters
+ROBOT (Return Of Bleichenbacher's Oracle Threat) allows attackers to perform RSA decryption and signing operations with the server's private key. This can lead to:
+- Decryption of TLS session data
+- Forging signatures
+- Compromise of any data encrypted with the server's RSA key
+
+#### Example Vulnerable Ciphers
+- `TLS_RSA_WITH_AES_128_CBC_SHA`
+- `TLS_RSA_WITH_AES_256_GCM_SHA384`
+- `TLS_RSA_WITH_3DES_EDE_CBC_SHA`
+
+#### Mitigation
+Disable all RSA key exchange cipher suites. Use only cipher suites with forward secrecy (ECDHE or DHE).
+
+---
+
 ### Heartbleed
 **CVE-2014-0160 | CVSS 7.5 | Severity: CRITICAL/HIGH**
 
@@ -218,6 +247,7 @@ Vulnerabilities affect the final grade:
 | FREAK | F | Export ciphers |
 | RC4 | F | Broken cipher |
 | Anonymous | F | No authentication |
+| ROBOT | C | RSA decryption oracle |
 | Heartbleed | F* | Critical vulnerability |
 
 *Heartbleed doesn't cap the grade directly but is reported as a critical finding.

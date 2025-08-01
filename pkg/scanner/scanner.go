@@ -931,6 +931,37 @@ func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []Vuln
 		})
 	}
 	
+	// ROBOT Attack (Return Of Bleichenbacher's Oracle Threat)
+	rsaCiphers := []string{}
+	for _, cipher := range result.CipherSuites {
+		// Look for RSA key exchange (not RSA signatures)
+		// These are ciphers that start with TLS_RSA_WITH_ or contain _RSA_ but not _RSA_WITH_
+		if strings.HasPrefix(cipher.Name, "TLS_RSA_WITH_") || 
+		   strings.HasPrefix(cipher.Name, "SSL_RSA_WITH_") ||
+		   (strings.Contains(cipher.Name, "_RSA_") && !strings.Contains(cipher.Name, "_RSA_WITH_")) {
+			rsaCiphers = append(rsaCiphers, cipher.Name)
+		}
+	}
+	
+	if len(rsaCiphers) > 0 {
+		desc := fmt.Sprintf("RSA key exchange cipher suites detected (%d found): %s - Vulnerable to ROBOT attack (RSA decryption oracle)",
+			len(rsaCiphers), strings.Join(rsaCiphers, ", "))
+		if len(rsaCiphers) > 3 {
+			desc = fmt.Sprintf("RSA key exchange cipher suites detected (%d found, e.g., %s) - Vulnerable to ROBOT attack which can decrypt RSA-encrypted data",
+				len(rsaCiphers), rsaCiphers[0])
+		}
+		vulns = append(vulns, VulnerabilityInfo{
+			Name:        "ROBOT Attack",
+			Severity:    "HIGH",
+			Description: desc,
+			Affected:    true,
+			CVEs: []CVEInfo{
+				{ID: "CVE-2017-13099", CVSS: 5.9}, // Generic ROBOT
+				{ID: "CVE-2017-6168", CVSS: 5.9},  // F5 ROBOT
+			},
+		})
+	}
+	
 	// Heartbleed (CVE-2014-0160) - Heuristic detection
 	heartbleedInfo := s.checkHeartbleedHeuristic(result)
 	if heartbleedInfo.Affected {

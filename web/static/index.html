@@ -577,6 +577,9 @@
                         case 'Heartbleed':
                             vulnAnchor = 'heartbleed';
                             break;
+                        case 'ROBOT Attack':
+                            vulnAnchor = 'robot-attack';
+                            break;
                         default:
                             // Fallback for any new vulnerabilities
                             vulnAnchor = vuln.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');

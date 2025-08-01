@@ -41,13 +41,6 @@ docker stop sslv3-test-server
 docker rm sslv3-test-server
 ```
 
-## Deploying to Proxmox
-1. Create an LXC container with Ubuntu 14.04 or 16.04
-2. Install Docker in the container
-3. Copy this directory to the container
-4. Run docker-compose up -d
-5. Access from your network at <container-ip>:18015
-
 ## Security Note
 This server is intentionally vulnerable to POODLE and other SSL v3 attacks. 
 - Run only on isolated test networks

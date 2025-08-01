@@ -29,6 +29,13 @@
                     <div class="input-hint">Track scans with ticket numbers or purpose</div>
                     <div class="input-error" id="commentsError"></div>
                 </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="checkSSLv3" name="checkSSLv3">
+                        <span>Deep Scan (includes SSL v3 detection)</span>
+                    </label>
+                    <div class="input-hint">Enable raw socket SSL v3 detection - may take longer</div>
+                </div>
                 <button type="submit" id="scanButton">Start Scan</button>
             </form>
         </div>
@@ -204,13 +211,17 @@
             button.textContent = 'Scanning...';
             
             try {
+                // Get SSL v3 check status
+                const checkSSLv3 = document.getElementById('checkSSLv3').checked;
+                
                 // Submit scan with validated values
                 const response = await fetch(`${API_BASE}/scans`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         target: targetValidation.cleaned,
-                        comments: commentsValidation.cleaned
+                        comments: commentsValidation.cleaned,
+                        check_sslv3: checkSSLv3
                     })
                 });
                 
@@ -512,8 +523,14 @@
                 
                 result.supported_protocols.forEach(proto => {
                     if (proto.enabled) {
-                        const icon = proto.version >= 0x0303 ? '✅' : '⚠️';
-                        html += `<li>${icon} ${proto.name}</li>`;
+                        let icon = proto.version >= 0x0303 ? '✅' : '⚠️';
+                        let className = '';
+                        // Special handling for SSL v3
+                        if (proto.version === 0x0300) {
+                            icon = '🔴';
+                            className = 'ssl3-warning';
+                        }
+                        html += `<li class="${className}">${icon} ${proto.name}</li>`;
                     }
                 });
                 

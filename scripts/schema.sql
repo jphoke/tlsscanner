@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS scans (
     -- User comments for scan tracking
     comments VARCHAR(100),
     
+    -- Deep scan options
+    check_sslv3 BOOLEAN DEFAULT FALSE,
+    
     result JSONB,
     error_message TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -54,6 +57,7 @@ CREATE INDEX idx_scans_service_type ON scans(service_type);
 CREATE INDEX idx_scans_connection_type ON scans(connection_type);
 CREATE INDEX idx_scans_certificate_expires ON scans(certificate_expires_at);
 CREATE INDEX idx_scans_grade ON scans(grade);
+CREATE INDEX idx_scans_check_sslv3 ON scans(check_sslv3) WHERE check_sslv3 = TRUE;
 
 -- Scan queue table
 CREATE TABLE IF NOT EXISTS scan_queue (
@@ -62,6 +66,7 @@ CREATE TABLE IF NOT EXISTS scan_queue (
     priority INTEGER NOT NULL DEFAULT 5,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     attempts INTEGER NOT NULL DEFAULT 0,
+    check_sslv3 BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     started_at TIMESTAMP,
     completed_at TIMESTAMP,

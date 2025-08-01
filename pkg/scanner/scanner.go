@@ -1,7 +1,8 @@
 package scanner
 
 import (
-	"crypto/dsa"
+	"context"
+	"crypto/dsa" //nolint:staticcheck // SA1019: Need deprecated crypto for security scanning
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -9,10 +10,11 @@ import (
 	ztls "github.com/zmap/zcrypto/tls"
 	zx509 "github.com/zmap/zcrypto/x509"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -28,6 +30,7 @@ type Config struct {
 	Verbose         bool
 	CustomCAPath    string    // Path to directory containing custom CA certificates
 	CustomCAs       *zx509.CertPool  // Pool of custom CAs to use for validation
+	CheckSSLv3      bool      // Enable SSL v3 detection using raw sockets
 }
 
 type Result struct {
@@ -152,7 +155,7 @@ func loadSystemCAs() *zx509.CertPool {
 	for _, path := range systemCertPaths {
 		// #nosec G304 - Reading system CA certificates from well-known hardcoded paths
 		// These are standard system certificate locations, not user-controlled input
-		if certData, err := ioutil.ReadFile(path); err == nil {
+		if certData, err := os.ReadFile(path); err == nil {
 			if caPool.AppendCertsFromPEM(certData) {
 				loaded = true
 				break
@@ -179,7 +182,7 @@ func loadSystemCAs() *zx509.CertPool {
 			for _, file := range files {
 				// #nosec G304 - Reading CA certificates from standard system directories
 				// Files are filtered by glob patterns (*.crt, *.pem) in known system locations
-				if certData, err := ioutil.ReadFile(file); err == nil {
+				if certData, err := os.ReadFile(file); err == nil {
 					caPool.AppendCertsFromPEM(certData)
 					loaded = true
 				}
@@ -216,7 +219,7 @@ func loadCustomCAs(caPath string, verbose bool) *zx509.CertPool {
 			// #nosec G304 - Reading custom CA certificates from user-specified directory
 			// This is the intended functionality - users need to provide custom CAs for internal certificates
 			// Files are filtered by extension (*.crt, *.pem, *.cer, *.ca) to ensure only certificate files
-			certData, err := ioutil.ReadFile(file)
+			certData, err := os.ReadFile(file)
 			if err != nil {
 				if verbose {
 					fmt.Printf("Warning: Could not read CA file %s: %v\n", file, err)
@@ -272,12 +275,16 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 	}
 
 	// Resolve IP
-	ips, err := net.LookupIP(host)
+	resolver := &net.Resolver{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	ips, err := resolver.LookupIPAddr(ctx, host)
 	if err != nil {
 		return nil, fmt.Errorf("DNS lookup failed: %w", err)
 	}
 	if len(ips) > 0 {
-		result.IP = ips[0].String()
+		result.IP = ips[0].IP.String()
 	}
 
 	// First, test if we can connect at all
@@ -293,7 +300,7 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 		result.Duration = time.Since(start)
 		return result, nil
 	}
-	testConn.Close()
+	_ = testConn.Close() // Best effort close after test connection
 
 	// Now test if TLS is available
 	var tlsConn *ztls.Conn
@@ -315,15 +322,49 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 		// Direct TLS connection
 		tlsConn, err = ztls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), tlsConfig)
 		if err != nil {
-			// TCP works but TLS doesn't - still - grade
+			// TCP works but TLS doesn't - check for SSL v3 before giving up
 			result.Errors = append(result.Errors, fmt.Sprintf("TLS handshake failed: %v", err))
-			result.Grade = "-"
-			result.Score = 0
-			result.Duration = time.Since(start)
-			return result, nil
+			
+			// Check for SSL v3 support using raw sockets if enabled
+			if s.config.CheckSSLv3 {
+				if s.config.Verbose {
+					fmt.Printf("DEBUG: Checking SSL v3 support using raw sockets after TLS failure\n")
+				}
+				
+				sslv3Supported, sslv3Err := TestSSLv3(host, port)
+				if sslv3Err != nil {
+					if s.config.Verbose {
+						fmt.Printf("DEBUG: SSL v3 raw socket test error: %v\n", sslv3Err)
+					}
+				} else if sslv3Supported {
+					// Add SSL v3 to supported protocols
+					sslv3Info := ProtocolInfo{
+						Name:    "SSL 3.0",
+						Version: 0x0300,
+						Enabled: true,
+					}
+					result.SupportedProtocols = append(result.SupportedProtocols, sslv3Info)
+					
+					if s.config.Verbose {
+						fmt.Printf("DEBUG: SSL v3 is SUPPORTED (detected via raw sockets)\n")
+					}
+					
+					// Don't return early - continue to process other aspects
+				}
+			}
+			
+			// If no protocols found at all, return with failure
+			if len(result.SupportedProtocols) == 0 {
+				result.Grade = "-"
+				result.Score = 0
+				result.Duration = time.Since(start)
+				return result, nil
+			}
 		}
 	}
-	tlsConn.Close()
+	if tlsConn != nil {
+		_ = tlsConn.Close() // Clean up test connection
+	}
 
 	// Test protocols
 	// Note: Go's crypto/tls doesn't support SSL v2, and SSL v3 support was removed in Go 1.14+
@@ -354,6 +395,32 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 			result.CipherSuites = append(result.CipherSuites, ciphers...)
 		}
 	}
+	
+	// Check for SSL v3 support using raw sockets if enabled and not already detected
+	if s.config.CheckSSLv3 && !hasSSLv3(result.SupportedProtocols) {
+		if s.config.Verbose {
+			fmt.Printf("DEBUG: Checking SSL v3 support using raw sockets\n")
+		}
+		
+		sslv3Supported, err := TestSSLv3(host, port)
+		if err != nil {
+			if s.config.Verbose {
+				fmt.Printf("DEBUG: SSL v3 raw socket test error: %v\n", err)
+			}
+		} else if sslv3Supported {
+			// Add SSL v3 to supported protocols
+			sslv3Info := ProtocolInfo{
+				Name:    "SSL 3.0",
+				Version: 0x0300,
+				Enabled: true,
+			}
+			result.SupportedProtocols = append(result.SupportedProtocols, sslv3Info)
+			
+			if s.config.Verbose {
+				fmt.Printf("DEBUG: SSL v3 is SUPPORTED (detected via raw sockets)\n")
+			}
+		}
+	}
 
 	// Get certificate info
 	certInfo, err := s.getCertificateInfo(host, port, serviceInfo)
@@ -365,6 +432,9 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 
 	// Check vulnerabilities
 	result.Vulnerabilities = s.checkVulnerabilities(host, port, result)
+
+	// Sort protocols - SSL v3 first, then ascending order
+	sortProtocols(result)
 
 	// Calculate grades and scores
 	calculateGrades(result)
@@ -382,6 +452,11 @@ func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo Se
 		MinVersion:         version,
 		MaxVersion:         version,
 		InsecureSkipVerify: true,
+	}
+	
+	// For SSL v3, try to force it more explicitly
+	if version == ztls.VersionSSL30 && s.config.Verbose {
+		fmt.Printf("DEBUG: Attempting SSL v3 connection (MinVersion=0x%04x, MaxVersion=0x%04x)\n", version, version)
 	}
 	
 	var conn *ztls.Conn
@@ -405,7 +480,9 @@ func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo Se
 		}
 		return false
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close() // Clean up connection
+	}()
 	
 	return true
 }
@@ -461,7 +538,9 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 		}
 		
 		if err == nil {
-			defer conn.Close()
+			defer func() {
+				_ = conn.Close() // Clean up cipher test connection
+			}()
 			
 			// Get cipher name
 			cipherName := getCipherName(cipherID)
@@ -478,6 +557,50 @@ func (s *Scanner) getCiphersForProtocol(host, port string, version uint16, proto
 	}
 	
 	return ciphers
+}
+
+// hasSSLv3 checks if SSL v3 is already in the supported protocols list
+func hasSSLv3(protocols []ProtocolInfo) bool {
+	for _, p := range protocols {
+		if p.Version == 0x0300 && p.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
+// sortProtocols sorts protocols with SSL v3 first, then by version ascending
+func sortProtocols(result *Result) {
+	if len(result.SupportedProtocols) <= 1 {
+		return
+	}
+	
+	// Custom sort: SSL v3 first, then ascending version order
+	sort.Slice(result.SupportedProtocols, func(i, j int) bool {
+		p1, p2 := result.SupportedProtocols[i], result.SupportedProtocols[j]
+		
+		// Only sort enabled protocols
+		if !p1.Enabled && !p2.Enabled {
+			return false
+		}
+		if !p1.Enabled {
+			return false
+		}
+		if !p2.Enabled {
+			return true
+		}
+		
+		// SSL v3 always comes first
+		if p1.Version == 0x0300 {
+			return true
+		}
+		if p2.Version == 0x0300 {
+			return false
+		}
+		
+		// Otherwise, sort by version ascending (TLS 1.0, 1.1, 1.2, 1.3)
+		return p1.Version < p2.Version
+	})
 }
 
 func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo) (*CertificateInfo, error) {
@@ -503,11 +626,13 @@ func (s *Scanner) getCertificateInfo(host, port string, serviceInfo ServiceInfo)
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close() // Clean up certificate check connection
+	}()
 	
 	state := conn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
-		return nil, fmt.Errorf("no certificates found")
+		return nil, fmt.Errorf("no certificates found") //nolint:err113 // Descriptive error for missing certificates
 	}
 	
 	cert := state.PeerCertificates[0]
@@ -681,6 +806,22 @@ func (s *Scanner) validateCertificateChain(cert *zx509.Certificate, chain []*zx5
 
 func (s *Scanner) checkVulnerabilities(host, port string, result *Result) []VulnerabilityInfo {
 	vulns := []VulnerabilityInfo{}
+	
+	// POODLE - SSL 3.0 is vulnerable
+	for _, proto := range result.SupportedProtocols {
+		if proto.Enabled && proto.Version == 0x0300 { // SSL 3.0
+			vulns = append(vulns, VulnerabilityInfo{
+				Name:        "POODLE Attack",
+				Severity:    "HIGH",
+				Description: "SSL 3.0 is vulnerable to the POODLE attack - allows decryption of encrypted connections",
+				Affected:    true,
+				CVEs: []CVEInfo{
+					{ID: "CVE-2014-3566", CVSS: 7.5},
+				},
+			})
+			break
+		}
+	}
 	
 	// BEAST - TLS 1.0 with CBC ciphers
 	hasTLS10 := false
@@ -1232,6 +1373,22 @@ func calculateSSLLabsScore(result *Result) {
 	                float64(keyExchangeScore)*0.3 + 
 	                float64(cipherScore)*0.4
 	result.Score = int(overallScore)
+	
+	// Check for SSL v3 first - automatic F grade regardless of anything else
+	for _, proto := range result.SupportedProtocols {
+		if proto.Enabled && proto.Version == 0x0300 {
+			result.Grade = "F"
+			result.Score = 0
+			result.GradeDegradations = append(result.GradeDegradations, GradeDegradation{
+				Category:    "protocol",
+				Issue:       "SSL 3.0 enabled",
+				Details:     "SSL 3.0 is completely broken (POODLE attack)",
+				Impact:      "Automatic F grade",
+				Remediation: "Disable SSL 3.0 immediately",
+			})
+			return
+		}
+	}
 	
 	// Check for automatic failures (SSL Labs rules)
 	if hasCertificateFailure(result) {

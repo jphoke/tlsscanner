@@ -91,12 +91,25 @@
 - [ ] JSON/YAML configuration file for custom mappings
 - [ ] Check custom mappings before well-known ports
 
+### SSL v3 Raw Socket Implementation (feature/raw-sslv3-sockets)
+- [ ] Implement raw socket SSL v3 detection as optional feature
+  - [ ] Create raw TCP socket connection handler
+  - [ ] Build SSL v3 ClientHello packet construction
+  - [ ] Parse ServerHello/Alert responses
+  - [ ] Add CLI flag (--check-sslv3 or --legacy-protocols)
+  - [ ] Add UI checkbox for "Test legacy SSL protocols"
+  - [ ] Integrate with existing vulnerability detection
+  - [ ] Add POODLE vulnerability when SSL v3 detected
+  - [ ] Document performance impact (~15s per test)
+  - [ ] Unit tests for various response scenarios
+  - [ ] Integration with SSL Labs scoring (auto F grade)
+
 ### Additional STARTTLS Protocols
 - [ ] PostgreSQL (port 5432) - SSLRequest packet
 - [ ] MySQL (port 3306) - SSL capability flag
 - [ ] LDAP (port 389) - StartTLS extended operation
 - [ ] XMPP/Jabber (port 5222)
-- [ ] FTP with AUTH TLS (port 21)
+- [x] FTP with AUTH TLS (port 21) - Completed 2025-08-01
 
 ### Environment Configuration
 - [x] Configurable host ports via environment variables
@@ -204,7 +217,8 @@
 
 ## 🐛 Known Issues
 
-1. Cannot detect SSL v2/v3 (Go crypto/tls limitation)
+1. Cannot detect SSL v2/v3 (zcrypto also blocks SSL v3 despite being a research library)
+   - Planned workaround: Raw socket implementation for SSL v3 detection
 2. Certificate key size not calculated
 3. No client certificate authentication support
 4. Full chain validation requires system roots

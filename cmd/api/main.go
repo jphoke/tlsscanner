@@ -7,8 +7,10 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -35,10 +37,21 @@ type Server struct {
 	scanner *scanner.Scanner
 }
 
+// ScanRequest represents a new scan submission
+// @Description Request body for submitting a new TLS/SSL scan
 type ScanRequest struct {
-	Target   string `json:"target" binding:"required"`
-	Priority int    `json:"priority"`
-	Comments string `json:"comments" binding:"omitempty,max=100"`
+	// Target hostname or IP address to scan (required)
+	// @example example.com or 192.168.1.1:8443
+	Target     string `json:"target" binding:"required" example:"example.com"`
+	// Scan priority (1-10, higher = more priority)
+	// @example 5
+	Priority   int    `json:"priority" example:"5"`
+	// Optional comments for tracking (max 100 chars)
+	// @example "Ticket #12345"
+	Comments   string `json:"comments" binding:"omitempty,max=100" example:"Quarterly security audit"`
+	// Enable deep scan with SSL v3 detection using raw sockets
+	// @example false
+	CheckSSLv3 bool   `json:"check_sslv3" example:"false"`
 }
 
 type ScanResponse struct {
@@ -99,6 +112,8 @@ var upgrader = websocket.Upgrader{
 }
 
 // validateTarget validates and sanitizes the scan target
+//
+//nolint:err113 // Dynamic errors provide specific validation feedback to users
 func validateTarget(target string) (string, int, error) {
 	// Remove leading/trailing whitespace
 	target = strings.TrimSpace(target)
@@ -168,6 +183,8 @@ func isValidIP(ip string) bool {
 }
 
 // validateComments validates the comments field
+//
+//nolint:err113 // Dynamic errors provide specific validation feedback to users
 func validateComments(comments string) (string, error) {
 	// Trim whitespace
 	comments = strings.TrimSpace(comments)
@@ -194,7 +211,11 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database connection: %v", err)
+		}
+	}()
 	
 	// Redis connection
 	redisURL := os.Getenv("REDIS_URL")
@@ -275,6 +296,8 @@ func main() {
 // @Failure 500 {object} map[string]string
 // @Router /scans [post]
 func (s *Server) createScan(c *gin.Context) {
+	ctx := c.Request.Context()
+	
 	var req ScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
@@ -297,11 +320,11 @@ func (s *Server) createScan(c *gin.Context) {
 	
 	// Create scan record
 	var scanID string
-	err = s.db.QueryRow(`
-		INSERT INTO scans (target, port, status, comments)
-		VALUES ($1, $2, 'queued', $3)
+	err = s.db.QueryRowContext(ctx, `
+		INSERT INTO scans (target, port, status, comments, check_sslv3)
+		VALUES ($1, $2, 'queued', $3, $4)
 		RETURNING id
-	`, cleanedTarget, fmt.Sprintf("%d", port), cleanedComments).Scan(&scanID)
+	`, cleanedTarget, fmt.Sprintf("%d", port), cleanedComments, req.CheckSSLv3).Scan(&scanID)
 	
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to create scan"})
@@ -314,10 +337,10 @@ func (s *Server) createScan(c *gin.Context) {
 		priority = 5
 	}
 	
-	_, err = s.db.Exec(`
-		INSERT INTO scan_queue (target, priority, scan_id)
-		VALUES ($1, $2, $3)
-	`, cleanedTarget, priority, scanID)
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO scan_queue (target, priority, scan_id, check_sslv3)
+		VALUES ($1, $2, $3, $4)
+	`, cleanedTarget, priority, scanID, req.CheckSSLv3)
 	
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to queue scan"})
@@ -325,7 +348,6 @@ func (s *Server) createScan(c *gin.Context) {
 	}
 	
 	// Publish to Redis for workers
-	ctx := c.Request.Context()
 	s.redis.Publish(ctx, "scan_queue", scanID)
 	
 	c.JSON(202, ScanResponse{
@@ -348,6 +370,7 @@ func (s *Server) createScan(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /scans/{id} [get]
 func (s *Server) getScan(c *gin.Context) {
+	ctx := c.Request.Context()
 	scanID := c.Param("id")
 	
 	var result json.RawMessage
@@ -362,7 +385,7 @@ func (s *Server) getScan(c *gin.Context) {
 	var certKeySize sql.NullInt64
 	var comments sql.NullString
 	
-	err := s.db.QueryRow(`
+	err := s.db.QueryRowContext(ctx, `
 		SELECT status, service_type, connection_type, grade, score, 
 		       protocol_support_score, key_exchange_score, cipher_strength_score,
 		       protocol_grade, protocol_score, 
@@ -379,7 +402,7 @@ func (s *Server) getScan(c *gin.Context) {
 		&certExpiresAt, &certDaysRemaining,
 		&certIssuer, &certKeyType, &certKeySize, &comments, &result)
 	
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		c.JSON(404, gin.H{"error": "Scan not found"})
 		return
 	}
@@ -465,7 +488,7 @@ func (s *Server) getScan(c *gin.Context) {
 	
 	// Get vulnerabilities
 	vulnerabilities := []gin.H{}
-	vulnRows, err := s.db.Query(`
+	vulnRows, err := s.db.QueryContext(ctx, `
 		SELECT vulnerability_name, severity, description, affected, 
 		       COALESCE(cve_data, '[]'::jsonb) as cve_data
 		FROM scan_vulnerabilities
@@ -473,7 +496,11 @@ func (s *Server) getScan(c *gin.Context) {
 		ORDER BY severity
 	`, scanID)
 	if err == nil {
-		defer vulnRows.Close()
+		defer func() {
+			if err := vulnRows.Close(); err != nil {
+				log.Printf("Error closing vulnerability rows: %v", err)
+			}
+		}()
 		for vulnRows.Next() {
 			var name, severity, description string
 			var affected bool
@@ -500,14 +527,18 @@ func (s *Server) getScan(c *gin.Context) {
 	
 	// Get grade degradations
 	degradations := []gin.H{}
-	degRows, err := s.db.Query(`
+	degRows, err := s.db.QueryContext(ctx, `
 		SELECT category, issue, details, impact, remediation
 		FROM scan_grade_degradations
 		WHERE scan_id = $1
 		ORDER BY category
 	`, scanID)
 	if err == nil {
-		defer degRows.Close()
+		defer func() {
+			if err := degRows.Close(); err != nil {
+				log.Printf("Error closing degradation rows: %v", err)
+			}
+		}()
 		for degRows.Next() {
 			var category, issue, details, impact, remediation string
 			if err := degRows.Scan(&category, &issue, &details, &impact, &remediation); err == nil {
@@ -525,14 +556,18 @@ func (s *Server) getScan(c *gin.Context) {
 	
 	// Get weak protocols
 	weakProtocols := []gin.H{}
-	protoRows, err := s.db.Query(`
+	protoRows, err := s.db.QueryContext(ctx, `
 		SELECT protocol_name, protocol_version
 		FROM scan_weak_protocols
 		WHERE scan_id = $1
 		ORDER BY protocol_version
 	`, scanID)
 	if err == nil {
-		defer protoRows.Close()
+		defer func() {
+			if err := protoRows.Close(); err != nil {
+				log.Printf("Error closing protocol rows: %v", err)
+			}
+		}()
 		for protoRows.Next() {
 			var name string
 			var version int
@@ -548,14 +583,18 @@ func (s *Server) getScan(c *gin.Context) {
 	
 	// Get weak ciphers
 	weakCiphers := []gin.H{}
-	cipherRows, err := s.db.Query(`
+	cipherRows, err := s.db.QueryContext(ctx, `
 		SELECT cipher_id, cipher_name, has_forward_secrecy, strength, protocol
 		FROM scan_weak_ciphers
 		WHERE scan_id = $1
 		ORDER BY strength, cipher_name
 	`, scanID)
 	if err == nil {
-		defer cipherRows.Close()
+		defer func() {
+			if err := cipherRows.Close(); err != nil {
+				log.Printf("Error closing cipher rows: %v", err)
+			}
+		}()
 		for cipherRows.Next() {
 			var id int
 			var name, strength, protocol string
@@ -586,10 +625,11 @@ func (s *Server) getScan(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /scans [get]
 func (s *Server) listScans(c *gin.Context) {
+	ctx := c.Request.Context()
 	limit := 50
 	offset := 0
 	
-	rows, err := s.db.Query(`
+	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, target, status, grade, score, comments, created_at
 		FROM scans
 		ORDER BY created_at DESC
@@ -600,7 +640,11 @@ func (s *Server) listScans(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Database error"})
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing scan list rows: %v", err)
+		}
+	}()
 	
 	var scans []gin.H
 	for rows.Next() {
@@ -642,6 +686,7 @@ func (s *Server) listScans(c *gin.Context) {
 }
 
 func (s *Server) streamScan(c *gin.Context) {
+	ctx := c.Request.Context()
 	scanID := c.Param("id")
 	
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -649,7 +694,11 @@ func (s *Server) streamScan(c *gin.Context) {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("Error closing WebSocket connection: %v", err)
+		}
+	}()
 	
 	// Send updates until scan completes
 	ticker := time.NewTicker(1 * time.Second)
@@ -657,7 +706,7 @@ func (s *Server) streamScan(c *gin.Context) {
 	
 	for range ticker.C {
 		var status string
-		err := s.db.QueryRow("SELECT status FROM scans WHERE id = $1", scanID).Scan(&status)
+		err := s.db.QueryRowContext(ctx, "SELECT status FROM scans WHERE id = $1", scanID).Scan(&status)
 		if err != nil {
 			return
 		}
@@ -686,6 +735,7 @@ func (s *Server) streamScan(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /stats [get]
 func (s *Server) getStats(c *gin.Context) {
+	ctx := c.Request.Context()
 	var stats struct {
 		TotalScans     int
 		ScansToday     int
@@ -695,12 +745,12 @@ func (s *Server) getStats(c *gin.Context) {
 	}
 	
 	// Get total scans
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM scans").Scan(&stats.TotalScans); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM scans").Scan(&stats.TotalScans); err != nil {
 		log.Printf("Error getting total scans count: %v", err)
 	}
 	
 	// Get scans today
-	if err := s.db.QueryRow(`
+	if err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM scans 
 		WHERE created_at >= CURRENT_DATE
 	`).Scan(&stats.ScansToday); err != nil {
@@ -708,7 +758,7 @@ func (s *Server) getStats(c *gin.Context) {
 	}
 	
 	// Get queue length
-	if err := s.db.QueryRow(`
+	if err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM scan_queue 
 		WHERE status = 'pending'
 	`).Scan(&stats.QueueLength); err != nil {
@@ -717,14 +767,18 @@ func (s *Server) getStats(c *gin.Context) {
 	
 	// Calculate average grade
 	var validGrades []string
-	rows, err := s.db.Query(`
+	rows, err := s.db.QueryContext(ctx, `
 		SELECT grade FROM scans 
 		WHERE status = 'completed' 
 		AND grade IS NOT NULL 
 		AND grade NOT IN ('', '-', 'N/A')
 	`)
 	if err == nil {
-		defer rows.Close()
+		defer func() {
+			if err := rows.Close(); err != nil {
+				log.Printf("Error closing stats rows: %v", err)
+			}
+		}()
 		for rows.Next() {
 			var grade string
 			if err := rows.Scan(&grade); err == nil {
@@ -793,14 +847,15 @@ func (s *Server) getStats(c *gin.Context) {
 // @Failure 503 {object} map[string]string
 // @Router /health [get]
 func (s *Server) healthCheck(c *gin.Context) {
+	ctx := c.Request.Context()
+	
 	// Check database
-	if err := s.db.Ping(); err != nil {
+	if err := s.db.PingContext(ctx); err != nil {
 		c.JSON(503, gin.H{"status": "unhealthy", "database": "down"})
 		return
 	}
 	
 	// Check Redis
-	ctx := c.Request.Context()
 	if err := s.redis.Ping(ctx).Err(); err != nil {
 		c.JSON(503, gin.H{"status": "unhealthy", "redis": "down"})
 		return
@@ -832,9 +887,13 @@ func (s *Server) worker(id int) {
 	log.Printf("Worker %d started", id)
 	
 	for {
+		// Create context with timeout for each scan operation
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		
 		// Get next scan from queue
 		var scanID, target string
-		err := s.db.QueryRow(`
+		var checkSSLv3 bool
+		err := s.db.QueryRowContext(ctx, `
 			UPDATE scan_queue
 			SET status = 'processing', started_at = NOW()
 			WHERE id = (
@@ -844,33 +903,45 @@ func (s *Server) worker(id int) {
 				FOR UPDATE SKIP LOCKED
 				LIMIT 1
 			)
-			RETURNING scan_id, target
-		`).Scan(&scanID, &target)
+			RETURNING scan_id, target, check_sslv3
+		`).Scan(&scanID, &target, &checkSSLv3)
 		
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// No work available
+			cancel()
 			time.Sleep(1 * time.Second)
 			continue
 		}
 		
 		if err != nil {
 			log.Printf("Worker %d: Failed to get work: %v", id, err)
+			cancel()
 			time.Sleep(1 * time.Second)
 			continue
 		}
 		
 		// Update scan status
-		if _, err := s.db.Exec("UPDATE scans SET status = 'scanning' WHERE id = $1", scanID); err != nil {
+		if _, err := s.db.ExecContext(ctx, "UPDATE scans SET status = 'scanning' WHERE id = $1", scanID); err != nil {
 			log.Printf("Worker %d: Error updating scan status to 'scanning': %v", id, err)
 		}
 		
+		// Create scanner config for this specific scan
+		scannerConfig := scanner.Config{
+			Timeout:        10 * time.Second,
+			MaxConcurrency: 10,
+			CustomCAPath:   os.Getenv("CUSTOM_CA_PATH"),
+			Verbose:        os.Getenv("SCANNER_VERBOSE") == "true",
+			CheckSSLv3:     checkSSLv3,
+		}
+		scannerInstance := scanner.New(scannerConfig)
+		
 		// Perform scan
-		log.Printf("Worker %d: Scanning %s", id, target)
-		result, err := s.scanner.ScanTarget(target)
+		log.Printf("Worker %d: Scanning %s (SSL v3 check: %v)", id, target, checkSSLv3)
+		result, err := scannerInstance.ScanTarget(target)
 		
 		if err != nil {
 			// Mark as failed
-			if _, dbErr := s.db.Exec(`
+			if _, dbErr := s.db.ExecContext(ctx, `
 				UPDATE scans 
 				SET status = 'failed', error_message = $2, updated_at = NOW()
 				WHERE id = $1
@@ -897,7 +968,7 @@ func (s *Server) worker(id int) {
 			}
 			
 			// Update main scan record
-			if _, err := s.db.Exec(`
+			if _, err := s.db.ExecContext(ctx, `
 				UPDATE scans 
 				SET status = 'completed', 
 				    service_type = $2,
@@ -930,7 +1001,7 @@ func (s *Server) worker(id int) {
 			   certExpiresAt, certDaysRemaining, certIssuer, certKeyType, certKeySize); err != nil {
 				log.Printf("Worker %d: CRITICAL ERROR - Failed to save scan results: %v", id, err)
 				// Try to at least mark it as failed
-				if _, dbErr := s.db.Exec(`UPDATE scans SET status = 'failed', error_message = $2 WHERE id = $1`, 
+				if _, dbErr := s.db.ExecContext(ctx, `UPDATE scans SET status = 'failed', error_message = $2 WHERE id = $1`, 
 					scanID, fmt.Sprintf("Failed to save results: %v", err)); dbErr != nil {
 					log.Printf("Worker %d: CRITICAL - Failed to update status after save failure: %v", id, dbErr)
 				}
@@ -941,7 +1012,7 @@ func (s *Server) worker(id int) {
 				// Convert CVEs to JSON
 				cveJSON, _ := json.Marshal(vuln.CVEs)
 				
-				if _, err := s.db.Exec(`
+				if _, err := s.db.ExecContext(ctx, `
 					INSERT INTO scan_vulnerabilities (scan_id, vulnerability_name, severity, description, affected, cve_data)
 					VALUES ($1, $2, $3, $4, $5, $6)
 				`, scanID, vuln.Name, vuln.Severity, vuln.Description, vuln.Affected, cveJSON); err != nil {
@@ -951,7 +1022,7 @@ func (s *Server) worker(id int) {
 			
 			// Save grade degradations
 			for _, deg := range result.GradeDegradations {
-				if _, err := s.db.Exec(`
+				if _, err := s.db.ExecContext(ctx, `
 					INSERT INTO scan_grade_degradations (scan_id, category, issue, details, impact, remediation)
 					VALUES ($1, $2, $3, $4, $5, $6)
 				`, scanID, deg.Category, deg.Issue, deg.Details, deg.Impact, deg.Remediation); err != nil {
@@ -962,7 +1033,7 @@ func (s *Server) worker(id int) {
 			// Save weak protocols
 			for _, proto := range result.SupportedProtocols {
 				if proto.Name == "TLS 1.0" || proto.Name == "TLS 1.1" || proto.Name == "SSL 3.0" || proto.Name == "SSL 2.0" {
-					if _, err := s.db.Exec(`
+					if _, err := s.db.ExecContext(ctx, `
 						INSERT INTO scan_weak_protocols (scan_id, protocol_name, protocol_version)
 						VALUES ($1, $2, $3)
 					`, scanID, proto.Name, proto.Version); err != nil {
@@ -978,7 +1049,7 @@ func (s *Server) worker(id int) {
 				isMissingPFS := !cipher.Forward && cipher.Protocol != "TLS 1.3"
 				
 				if isWeak || isMissingPFS {
-					if _, err := s.db.Exec(`
+					if _, err := s.db.ExecContext(ctx, `
 						INSERT INTO scan_weak_ciphers (scan_id, cipher_id, cipher_name, has_forward_secrecy, strength, protocol)
 						VALUES ($1, $2, $3, $4, $5, $6)
 					`, scanID, cipher.ID, cipher.Name, cipher.Forward, cipher.Strength, cipher.Protocol); err != nil {
@@ -989,10 +1060,13 @@ func (s *Server) worker(id int) {
 		}
 		
 		// Remove from queue
-		if _, err := s.db.Exec("DELETE FROM scan_queue WHERE scan_id = $1", scanID); err != nil {
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM scan_queue WHERE scan_id = $1", scanID); err != nil {
 			log.Printf("Worker %d: Error removing scan from queue: %v", id, err)
 		}
 		
 		log.Printf("Worker %d: Completed scan %s", id, scanID)
+		
+		// Clean up context
+		cancel()
 	}
 }

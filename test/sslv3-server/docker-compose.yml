@@ -1,0 +1,8 @@
+version: '3'
+services:
+  sslv3-server:
+    build: .
+    ports:
+      - "18015:443"
+    container_name: sslv3-test-server
+    restart: unless-stopped

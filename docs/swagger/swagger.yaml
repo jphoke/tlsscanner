@@ -27,13 +27,32 @@ definitions:
         type: integer
     type: object
   main.ScanRequest:
+    description: Request body for submitting a new TLS/SSL scan
     properties:
+      check_sslv3:
+        description: |-
+          Enable deep scan with SSL v3 detection using raw sockets
+          @example false
+        example: false
+        type: boolean
       comments:
+        description: |-
+          Optional comments for tracking (max 100 chars)
+          @example "Ticket #12345"
+        example: Quarterly security audit
         maxLength: 100
         type: string
       priority:
+        description: |-
+          Scan priority (1-10, higher = more priority)
+          @example 5
+        example: 5
         type: integer
       target:
+        description: |-
+          Target hostname or IP address to scan (required)
+          @example example.com or 192.168.1.1:8443
+        example: example.com
         type: string
     required:
     - target
@@ -117,7 +136,7 @@ definitions:
 host: localhost:8000
 info:
   contact: {}
-  description: High-performance TLS/SSL security scanner API with SSL Labs grading
+  description: Request body for submitting a new TLS/SSL scan
   title: TLS Scanner Portal API
   version: 1.0.0
 paths:

@@ -1,3 +1,4 @@
+//nolint:err113 // This file uses dynamic errors to provide detailed STARTTLS negotiation feedback
 package scanner
 
 import (
@@ -190,6 +191,60 @@ func (p *POP3StartTLS) Negotiate(conn net.Conn) error {
 	return nil // Success
 }
 
+// FTPStartTLS handles FTP AUTH TLS negotiation
+type FTPStartTLS struct{}
+
+func (f *FTPStartTLS) Negotiate(conn net.Conn) error {
+	reader := bufio.NewReader(conn)
+	
+	// Read greeting (220 response)
+	greeting, err := reader.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("failed to read FTP greeting: %w", err)
+	}
+	
+	if !strings.HasPrefix(greeting, "220") {
+		return fmt.Errorf("unexpected FTP greeting: %s", greeting)
+	}
+	
+	// Send AUTH TLS command
+	_, err = conn.Write([]byte("AUTH TLS\r\n"))
+	if err != nil {
+		return fmt.Errorf("failed to send AUTH TLS: %w", err)
+	}
+	
+	// Read AUTH TLS response
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("failed to read AUTH TLS response: %w", err)
+	}
+	
+	// Check for success (234 response code)
+	if !strings.HasPrefix(response, "234") {
+		// Some servers might use different codes or AUTH SSL
+		if strings.Contains(response, "502") || strings.Contains(response, "500") {
+			// Try AUTH SSL as fallback
+			_, err = conn.Write([]byte("AUTH SSL\r\n"))
+			if err != nil {
+				return fmt.Errorf("failed to send AUTH SSL: %w", err)
+			}
+			
+			response, err = reader.ReadString('\n')
+			if err != nil {
+				return fmt.Errorf("failed to read AUTH SSL response: %w", err)
+			}
+			
+			if !strings.HasPrefix(response, "234") {
+				return fmt.Errorf("server does not support AUTH TLS/SSL: %s", response)
+			}
+		} else {
+			return fmt.Errorf("AUTH TLS failed: %s", response)
+		}
+	}
+	
+	return nil
+}
+
 // GetStartTLSNegotiator returns the appropriate negotiator for a protocol
 func GetStartTLSNegotiator(protocol string) (StartTLSNegotiator, error) {
 	switch strings.ToLower(protocol) {
@@ -199,6 +254,8 @@ func GetStartTLSNegotiator(protocol string) (StartTLSNegotiator, error) {
 		return &IMAPStartTLS{}, nil
 	case "pop3":
 		return &POP3StartTLS{}, nil
+	case "ftp":
+		return &FTPStartTLS{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported STARTTLS protocol: %s", protocol)
 	}
@@ -219,20 +276,20 @@ func DialWithStartTLS(host, port, protocol string, config *ztls.Config, timeout 
 	// Get the appropriate negotiator
 	negotiator, err := GetStartTLSNegotiator(protocol)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close() // Best effort cleanup on error
 		return nil, err
 	}
 	
 	// Perform STARTTLS negotiation
 	if err := negotiator.Negotiate(conn); err != nil {
-		conn.Close()
+		_ = conn.Close() // Best effort cleanup on error
 		return nil, fmt.Errorf("STARTTLS negotiation failed: %w", err)
 	}
 	
 	// Upgrade to TLS
 	tlsConn := ztls.Client(conn, config)
 	if err := tlsConn.Handshake(); err != nil {
-		tlsConn.Close()
+		_ = tlsConn.Close() // Best effort cleanup on error
 		return nil, fmt.Errorf("TLS handshake failed: %w", err)
 	}
 	

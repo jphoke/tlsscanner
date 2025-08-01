@@ -40,6 +40,10 @@ This tool is designed exclusively for:
 
 This is a defensive security tool - think "security team's best friend," not "hacker's toolkit."
 
+## Upgrading from Previous Versions
+
+If you're upgrading from a previous version, please see the [Migration Guide](docs/MIGRATION.md) for important database updates and new features.
+
 ## Quick Start
 
 ```bash

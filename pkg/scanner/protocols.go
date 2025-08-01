@@ -30,6 +30,9 @@ var portServiceMap = map[string]ServiceInfo{
 	"110": {Name: "POP3", Protocol: ProtocolSTARTTLS, STARTTLSType: "pop3"},
 	"995": {Name: "POP3S", Protocol: ProtocolTLS},
 	
+	// FTP
+	"21":  {Name: "FTP", Protocol: ProtocolSTARTTLS, STARTTLSType: "ftp"},
+	
 	// LDAP
 	"389": {Name: "LDAP", Protocol: ProtocolSTARTTLS, STARTTLSType: "ldap"},
 	"636": {Name: "LDAPS", Protocol: ProtocolTLS},

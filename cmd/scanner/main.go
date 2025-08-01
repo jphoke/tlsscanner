@@ -19,6 +19,7 @@ func main() {
 		jsonOutput = flag.Bool("json", false, "Output as JSON")
 		verbose    = flag.Bool("v", false, "Verbose output")
 		caPath     = flag.String("ca-path", "", "Path to directory containing custom CA certificates")
+		checkSSLv3 = flag.Bool("check-sslv3", false, "Enable SSL v3 detection (uses raw sockets)")
 	)
 	
 	flag.Parse()
@@ -33,6 +34,7 @@ func main() {
 		Timeout:      *timeout,
 		Verbose:      *verbose,
 		CustomCAPath: *caPath,
+		CheckSSLv3:   *checkSSLv3,
 	}
 	
 	s := scanner.New(config)

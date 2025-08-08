@@ -1,6 +1,27 @@
 # TODO List for TLS Scanner Portal
 
-## ✅ Completed (as of 2025-07-26)
+## 🚧 Active Development - Feature Branches Ready
+
+### zcrypto Migration (Branch: feature/zcrypto-migration)
+- **Status**: COMPLETE - Ready to merge to main
+- **What it adds**:
+  - Enhanced vulnerability detection capabilities
+  - Export cipher enumeration (40-bit, 56-bit)
+  - NULL cipher detection with automatic F grade
+  - Better certificate handling with zcrypto
+  - Foundation for future security research features
+
+### SSL v3 Raw Socket Detection (Branch: feature/raw-sslv3-sockets)
+- **Status**: COMPLETE - Ready to merge to main
+- **What it adds**:
+  - Optional SSL v3 detection via raw sockets (--check-sslv3 flag)
+  - Bypasses Go/zcrypto SSL v3 blocking
+  - Automatic F grade for SSL v3
+  - POODLE vulnerability detection
+  - "Deep Scan" checkbox in UI
+  - Database migration required (see docs/MIGRATION.md)
+
+## ✅ Completed Features (as of 2025-08-01)
 
 ### Core Scanner
 - [x] Built fast Go-based TLS scanner (<1s scan times)
@@ -65,25 +86,45 @@
 - [x] Database schema with JSONB CVE storage
 - [x] Web UI vulnerability display with severity
 
-## 🚀 High Priority - Next Features
+### Recently Completed (July-August 2025)
 
-### zcrypto Migration Testing (Branch: feature/zcrypto-migration)
-- [x] Successfully migrated from crypto/tls to zcrypto
-- [ ] Test export cipher enumeration capabilities
-- [ ] Verify NULL cipher detection works
-- [ ] Test browser-specific cipher suite lists
-- [ ] Benchmark performance vs standard crypto/tls
-- [ ] Document any API differences or quirks found
-- [ ] Consider merging to main after thorough testing
+#### Major Features
+- [x] **zcrypto Migration** - Enhanced vulnerability detection capabilities
+- [x] **SSL v3 Raw Socket Detection** - Bypasses Go/zcrypto library limitations
+- [x] **FTP STARTTLS Support** - AUTH TLS/SSL negotiation on port 21
+- [x] **Custom CA Support** - Trust internal/corporate certificates
+- [x] **Configurable Host Ports** - Avoid conflicts with existing services
+- [x] **Comments Field** - 100-char notes on scans for tracking
 
-### Comments Field for Scans
-- [x] Add comments field to scan records (0-100 chars)
-  - [x] Database schema update: ALTER TABLE scans ADD COLUMN comments VARCHAR(100)
-  - [x] API: Accept comments in POST /scans request
-  - [x] API: Return comments in GET /scans responses
-  - [x] Web UI: Add comments input field
-  - [x] Web UI: Display comments in scan results and recent scans
-  - [x] Use cases: Change tickets, test purposes, analyst notes
+#### Vulnerability Detection
+- [x] **BEAST (CVE-2011-3389)** - TLS 1.0 with CBC ciphers
+- [x] **SWEET32 (CVE-2016-2183)** - 3DES birthday attacks
+- [x] **FREAK (CVE-2015-0204)** - Export-grade ciphers (enhanced with zcrypto)
+- [x] **RC4 weaknesses** (CVE-2013-2566, CVE-2015-2808)
+- [x] **Anonymous cipher suites** - No authentication detection
+- [x] **Weak DH parameters** - Logjam vulnerability warning
+- [x] **Heartbleed (CVE-2014-0160)** - Heuristic detection with confidence scoring
+- [x] **ROBOT (CVE-2017-13099)** - RSA key exchange cipher detection
+- [x] **POODLE (CVE-2014-3566)** - Detected when SSL v3 is found
+- [x] **CVE tracking** - CVSS scores and identifiers in database
+
+#### zcrypto Enhanced Features
+- [x] **Export Cipher Enumeration** - Detects all export-grade ciphers
+- [x] **NULL Cipher Detection** - Identifies servers with no encryption (auto F grade)
+- [x] **Enhanced FREAK Detection** - More accurate with actual export cipher enumeration
+- [x] **Browser Cipher Suite Lists** - Chrome/Firefox/Safari constants available
+
+## 🚀 High Priority - Next Steps
+
+### Merge Feature Branches to Main
+- [ ] **Merge zcrypto migration** (feature/zcrypto-migration)
+  - [ ] Final testing on main
+  - [ ] Update documentation
+  - [ ] Tag release
+- [ ] **Merge SSL v3 detection** (feature/raw-sslv3-sockets)
+  - [ ] Apply database migration
+  - [ ] Final testing
+  - [ ] Update deployment docs
 
 ### Custom Port Mapping
 - [ ] Allow admin to configure custom port mappings file
@@ -91,25 +132,12 @@
 - [ ] JSON/YAML configuration file for custom mappings
 - [ ] Check custom mappings before well-known ports
 
-### SSL v3 Raw Socket Implementation (feature/raw-sslv3-sockets)
-- [ ] Implement raw socket SSL v3 detection as optional feature
-  - [ ] Create raw TCP socket connection handler
-  - [ ] Build SSL v3 ClientHello packet construction
-  - [ ] Parse ServerHello/Alert responses
-  - [ ] Add CLI flag (--check-sslv3 or --legacy-protocols)
-  - [ ] Add UI checkbox for "Test legacy SSL protocols"
-  - [ ] Integrate with existing vulnerability detection
-  - [ ] Add POODLE vulnerability when SSL v3 detected
-  - [ ] Document performance impact (~15s per test)
-  - [ ] Unit tests for various response scenarios
-  - [ ] Integration with SSL Labs scoring (auto F grade)
-
 ### Additional STARTTLS Protocols
+- [x] FTP with AUTH TLS (port 21) - Completed 2025-08-01
 - [ ] PostgreSQL (port 5432) - SSLRequest packet
 - [ ] MySQL (port 3306) - SSL capability flag
 - [ ] LDAP (port 389) - StartTLS extended operation
 - [ ] XMPP/Jabber (port 5222)
-- [x] FTP with AUTH TLS (port 21) - Completed 2025-08-01
 
 ### Environment Configuration
 - [x] Configurable host ports via environment variables
@@ -161,32 +189,16 @@
 
 ### Additional Protocol Support
 - [ ] **XMPP/Jabber STARTTLS** (port 5222)
-- [ ] **FTP** with AUTH TLS (port 21)
 - [ ] **NNTP** with STARTTLS (port 119)
 
-### Vulnerability Detection
-- [x] BEAST (CVE-2011-3389) - TLS 1.0 with CBC ciphers
-- [x] SWEET32 (CVE-2016-2183) - 3DES birthday attacks
-- [x] FREAK (CVE-2015-0204) - Export-grade ciphers (enhanced with zcrypto)
-- [x] RC4 weaknesses (CVE-2013-2566, CVE-2015-2808)
-- [x] Anonymous cipher suites detection
-- [x] Weak DH parameters warning (Logjam risk)
-- [x] CVE tracking with CVSS scores
-- [x] Heartbleed (CVE-2014-0160) - Heuristic detection with confidence scoring
-- [ ] POODLE (CVE-2014-3566)
+### Vulnerability Detection - TODO
 - [ ] CRIME/BREACH compression attacks
-- [ ] ROBOT (CVE-2017-13099)
-- [ ] Full Logjam detection with DH parameter size
-- [x] SSL v3 detection code ready (but zcrypto blocks connections)
+- [ ] Full Logjam detection with actual DH parameter size extraction
 
-### New Features Enabled by zcrypto
-- [ ] **Export Cipher Enumeration** - Test and enumerate all export-grade ciphers
-- [ ] **NULL Cipher Detection** - Identify and test servers with no encryption
-- [ ] **Browser Cipher Suite Testing** - Use Chrome/Firefox/Safari cipher lists
-- [ ] **Enhanced FREAK Detection** - More accurate with actual export cipher presence
-- [ ] **Certificate JSON Export** - Use zcrypto's JSON serialization
-- [ ] **DH Parameter Extraction** - Get actual DH sizes from handshake
-- [ ] **Extended Handshake Analysis** - Access to handshake messages
+### New Features Enabled by zcrypto - TODO
+- [ ] **Certificate JSON Export** - Use zcrypto's JSON serialization for storage
+- [ ] **DH Parameter Extraction** - Get actual DH sizes from handshake (not exposed in ConnectionState)
+- [ ] **Extended Handshake Analysis** - Access to handshake messages for deeper analysis
 - [ ] **Broken Certificate Handling** - Test against malformed certificates
 
 ### Advanced Analysis

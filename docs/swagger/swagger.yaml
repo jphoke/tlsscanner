@@ -187,21 +187,28 @@ paths:
     post:
       consumes:
       - application/json
-      description: Submit a target hostname or IP address for TLS/SSL scanning
+      description: Submit a single target or multiple targets for TLS/SSL scanning
       parameters:
-      - description: Scan target
+      - description: Single scan target
         in: body
         name: scan
-        required: true
         schema:
           $ref: '#/definitions/main.ScanRequest'
+      - description: Batch of scan targets (up to 100)
+        in: body
+        name: batch
+        schema:
+          items:
+            $ref: '#/definitions/main.ScanRequest'
+          type: array
       produces:
       - application/json
       responses:
         "202":
-          description: Accepted
+          description: Batch scan response
           schema:
-            $ref: '#/definitions/main.ScanResponse'
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -214,7 +221,7 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Submit a new scan
+      summary: Submit a new scan or batch of scans
       tags:
       - scans
   /scans/{id}:

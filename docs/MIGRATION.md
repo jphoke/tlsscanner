@@ -2,9 +2,9 @@
 
 This guide helps you migrate from older versions of TLS Scanner to the latest version.
 
-## Migrating to SSL v3 Detection Support (August 2025)
+## Migrating to Version 1.2.0 (August 2025)
 
-The latest version adds optional SSL v3 detection using raw sockets, bypassing Go/zcrypto limitations.
+Version 1.2.0 adds optional SSL v3 detection using raw sockets, enhanced vulnerability detection with zcrypto, and ROBOT attack detection.
 
 ### Database Migration Required
 
@@ -138,5 +138,6 @@ SSL v3 detection uses raw sockets and adds a small overhead:
 
 ## Version History
 
-- **August 2025**: Added SSL v3 raw socket detection, zcrypto migration
-- **July 2025**: Initial release with SSL Labs grading
+- **v1.2.0 (August 2025)**: SSL v3 raw socket detection, zcrypto migration, ROBOT attack detection, FTP STARTTLS
+- **v1.0.1 (July 2025)**: Custom CA support, configurable ports, vulnerability detection
+- **v1.0.0 (July 2025)**: Initial release with SSL Labs grading, STARTTLS support

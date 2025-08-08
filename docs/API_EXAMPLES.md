@@ -42,6 +42,46 @@ curl -X POST http://localhost:8000/api/v1/scans \
   }'
 ```
 
+## Batch Scan
+
+Submit multiple targets in a single request:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/scans \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "target": "www.example.com",
+      "comments": "Production web server"
+    },
+    {
+      "target": "api.example.com",
+      "comments": "API server",
+      "priority": 10
+    },
+    {
+      "target": "legacy.example.com",
+      "check_sslv3": true,
+      "comments": "Old server - check SSL v3"
+    }
+  ]'
+```
+
+Response:
+```json
+{
+  "total": 3,
+  "success": 3,
+  "failed": 0,
+  "scans": [
+    {"target": "www.example.com", "id": "123e4567-e89b-12d3-a456-426614174000", "status": "queued"},
+    {"target": "api.example.com", "id": "123e4567-e89b-12d3-a456-426614174001", "status": "queued"},
+    {"target": "legacy.example.com", "id": "123e4567-e89b-12d3-a456-426614174002", "status": "queued"}
+  ],
+  "message": "Batch scan initiated: 3 queued, 0 failed"
+}
+```
+
 ## Response Format
 
 All scan submissions return a response like:

@@ -285,22 +285,33 @@ func main() {
 }
 
 // createScan godoc
-// @Summary Submit a new scan
-// @Description Submit a target hostname or IP address for TLS/SSL scanning
+// @Summary Submit a new scan or batch of scans
+// @Description Submit a single target or multiple targets for TLS/SSL scanning
 // @Tags scans
 // @Accept json
 // @Produce json
-// @Param scan body ScanRequest true "Scan target"
-// @Success 202 {object} ScanResponse
+// @Param scan body ScanRequest false "Single scan target"
+// @Param batch body []ScanRequest false "Batch of scan targets (up to 100)"
+// @Success 202 {object} ScanResponse "Single scan response"
+// @Success 202 {object} map[string]interface{} "Batch scan response"
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /scans [post]
 func (s *Server) createScan(c *gin.Context) {
 	ctx := c.Request.Context()
 	
+	// Try to parse as array first (batch request)
+	var batchReq []ScanRequest
+	if err := c.ShouldBindJSON(&batchReq); err == nil {
+		// It's a batch request
+		s.handleBatchScan(c, batchReq)
+		return
+	}
+	
+	// Not an array, try single request
 	var req ScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(400, gin.H{"error": "Invalid request format"})
 		return
 	}
 	
@@ -355,6 +366,109 @@ func (s *Server) createScan(c *gin.Context) {
 		Status:  "queued",
 		Message: "Scan has been queued",
 		Created: time.Now(),
+	})
+}
+
+// handleBatchScan processes batch scan requests
+func (s *Server) handleBatchScan(c *gin.Context, requests []ScanRequest) {
+	ctx := c.Request.Context()
+	
+	// Limit batch size
+	const maxBatchSize = 100
+	if len(requests) > maxBatchSize {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("Batch size exceeds maximum of %d", maxBatchSize)})
+		return
+	}
+	
+	if len(requests) == 0 {
+		c.JSON(400, gin.H{"error": "Empty batch request"})
+		return
+	}
+	
+	// Process each scan request
+	var results []gin.H
+	successCount := 0
+	failedCount := 0
+	
+	for _, req := range requests {
+		// Validate and sanitize target
+		cleanedTarget, port, err := validateTarget(req.Target)
+		if err != nil {
+			results = append(results, gin.H{
+				"target": req.Target,
+				"error":  fmt.Sprintf("Invalid target: %s", err.Error()),
+			})
+			failedCount++
+			continue
+		}
+		
+		// Validate and sanitize comments
+		cleanedComments, err := validateComments(req.Comments)
+		if err != nil {
+			results = append(results, gin.H{
+				"target": req.Target,
+				"error":  fmt.Sprintf("Invalid comments: %s", err.Error()),
+			})
+			failedCount++
+			continue
+		}
+		
+		// Create scan record
+		var scanID string
+		err = s.db.QueryRowContext(ctx, `
+			INSERT INTO scans (target, port, status, comments, check_sslv3)
+			VALUES ($1, $2, 'queued', $3, $4)
+			RETURNING id
+		`, cleanedTarget, fmt.Sprintf("%d", port), cleanedComments, req.CheckSSLv3).Scan(&scanID)
+		
+		if err != nil {
+			results = append(results, gin.H{
+				"target": req.Target,
+				"error":  "Failed to create scan",
+			})
+			failedCount++
+			continue
+		}
+		
+		// Add to queue
+		priority := req.Priority
+		if priority == 0 {
+			priority = 5
+		}
+		
+		_, err = s.db.ExecContext(ctx, `
+			INSERT INTO scan_queue (target, priority, scan_id, check_sslv3)
+			VALUES ($1, $2, $3, $4)
+		`, cleanedTarget, priority, scanID, req.CheckSSLv3)
+		
+		if err != nil {
+			results = append(results, gin.H{
+				"target": req.Target,
+				"error":  "Failed to queue scan",
+				"id":     scanID,
+			})
+			failedCount++
+			continue
+		}
+		
+		// Publish to Redis
+		s.redis.Publish(ctx, "scan_queue", scanID)
+		
+		results = append(results, gin.H{
+			"target": req.Target,
+			"id":     scanID,
+			"status": "queued",
+		})
+		successCount++
+	}
+	
+	// Return batch response
+	c.JSON(202, gin.H{
+		"total":   len(requests),
+		"success": successCount,
+		"failed":  failedCount,
+		"scans":   results,
+		"message": fmt.Sprintf("Batch scan initiated: %d queued, %d failed", successCount, failedCount),
 	})
 }
 

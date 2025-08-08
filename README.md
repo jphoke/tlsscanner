@@ -58,10 +58,16 @@ Open http://localhost:3000 - that's it!
 
 - ⚡ 100x faster than bash-based scanners
 - 🏆 SSL Labs grading
-- 📧 Automatic STARTTLS for mail servers (additional protocols soon!)
-- 🔍 Vulnerability detection with CVE tracking
+- 📧 Automatic STARTTLS for mail servers, FTP, and more
+- 🔍 Enhanced vulnerability detection with CVE tracking
+  - Export cipher detection (FREAK)
+  - NULL cipher detection
+  - ROBOT attack detection
+  - Heartbleed heuristic analysis
+  - SSL v3 detection (optional deep scan)
 - 🏢 Custom CA support for internal certificates
 - 🌐 Modern web UI with real-time updates
+- 🔬 Powered by zcrypto for research-grade analysis
 
 ## Screenshots
 
@@ -121,6 +127,31 @@ Navigate to http://localhost:3000 and enter any hostname:
 
 # With custom CA certificates (for internal/corporate CAs)
 ./tlsscanner -target internal.company.com -ca-path /path/to/ca/certs
+
+# Deep scan including SSL v3 detection (slower)
+./tlsscanner -target legacy.server.com -check-sslv3
+
+# Batch scanning from CSV file
+./tlsscanner -batch test/test-targets.csv
+./tlsscanner -b test/test-targets.csv -summary  # Summary only
+./tlsscanner -batch test/test-targets.csv -json > results.json
+```
+
+#### Batch File Format
+```csv
+# test/test-targets.csv - with header
+target,check_sslv3,comments
+google.com,N,Google main site
+badssl.com,N,Testing site
+expired.badssl.com,N,Expired cert test
+self-signed.badssl.com,Y,Self-signed with SSL v3 check
+smtp.gmail.com:587,N,Gmail SMTP with STARTTLS
+smtp.gmail.com:465,N,Gmail SMTP with direct TLS
+
+# Or minimal format (no header)
+example.com
+smtp.server.com:587
+192.168.1.1:8443,Y
 ```
 
 The scanner automatically detects STARTTLS for mail ports and trusts certificates signed by CAs in the specified directory.

@@ -4,6 +4,30 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 
 ## [Unreleased]
 
+### Added - SSL v3 Raw Socket Detection (Branch: feature/raw-sslv3-sockets)
+- **Raw Socket SSL v3 Detection**: Optional detection bypassing Go/zcrypto limitations
+  - CLI flag `--check-sslv3` for legacy protocol testing
+  - "Deep Scan" checkbox in web UI
+  - Automatic F grade for SSL v3
+  - POODLE vulnerability detection
+  - Database migration required (see docs/MIGRATION.md)
+  - ~2-3 second overhead when enabled
+
+### Added - August 2025 Features
+- **ROBOT Attack Detection**: Identifies RSA key exchange vulnerabilities (CVE-2017-13099)
+- **FTP STARTTLS Support**: AUTH TLS/SSL negotiation on port 21
+- **Batch Scanning Support**:
+  - CLI: `-batch` or `-b` flag for CSV file input
+  - API: POST /api/v1/scans accepts arrays for bulk scanning
+  - Up to 100 targets per batch via API
+  - CSV format supports per-target SSL v3 checking
+- **Linter Compliance**: Fixed all golangci-lint issues
+  - Context support for all database operations
+  - Proper error handling with errors.Is()
+  - Resource cleanup verification
+
+## [1.2.0] - 2025-08-08
+
 ### Changed - zcrypto Migration
 - **Replaced Go's crypto/tls with zcrypto library** for enhanced security research capabilities
   - Direct replacement approach - no abstraction layer needed

@@ -82,7 +82,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Submit a target hostname or IP address for TLS/SSL scanning",
+                "description": "Submit a single target or multiple targets for TLS/SSL scanning",
                 "consumes": [
                     "application/json"
                 ],
@@ -92,23 +92,34 @@ const docTemplate = `{
                 "tags": [
                     "scans"
                 ],
-                "summary": "Submit a new scan",
+                "summary": "Submit a new scan or batch of scans",
                 "parameters": [
                     {
-                        "description": "Scan target",
+                        "description": "Single scan target",
                         "name": "scan",
                         "in": "body",
-                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/main.ScanRequest"
+                        }
+                    },
+                    {
+                        "description": "Batch of scan targets (up to 100)",
+                        "name": "batch",
+                        "in": "body",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.ScanRequest"
+                            }
                         }
                     }
                 ],
                 "responses": {
                     "202": {
-                        "description": "Accepted",
+                        "description": "Batch scan response",
                         "schema": {
-                            "$ref": "#/definitions/main.ScanResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {

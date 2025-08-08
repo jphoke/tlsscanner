@@ -93,22 +93,58 @@ curl http://localhost:8000/api/v1/scans/550e8400-e29b-41d4-a716-446655440000
 
 ### POST /api/v1/scans
 
-Start a new scan.
+Start a new scan or batch of scans.
 
-**Request Body:**
+**Single Scan Request:**
 ```json
 {
   "target": "example.com:443",
-  "comments": "Optional comment (max 100 chars)"
+  "comments": "Optional comment (max 100 chars)",
+  "check_sslv3": false  // Optional: Enable deep scan for SSL v3 (default: false)
 }
 ```
 
-**Response:**
+**Batch Scan Request (up to 100 targets):**
+```json
+[
+  {
+    "target": "example.com",
+    "comments": "Production server",
+    "check_sslv3": false
+  },
+  {
+    "target": "smtp.gmail.com:587",
+    "comments": "Mail server"
+  },
+  {
+    "target": "legacy.server.com",
+    "check_sslv3": true,
+    "comments": "Check for SSL v3"
+  }
+]
+```
+
+**Single Scan Response:**
 ```json
 {
   "id": "uuid",
   "status": "pending",
   "message": "Scan initiated"
+}
+```
+
+**Batch Scan Response:**
+```json
+{
+  "total": 3,
+  "success": 3,
+  "failed": 0,
+  "scans": [
+    {"target": "example.com", "id": "uuid-1", "status": "queued"},
+    {"target": "smtp.gmail.com:587", "id": "uuid-2", "status": "queued"},
+    {"target": "legacy.server.com", "id": "uuid-3", "status": "queued"}
+  ],
+  "message": "Batch scan initiated: 3 queued, 0 failed"
 }
 ```
 

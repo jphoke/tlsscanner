@@ -133,6 +133,16 @@ func New(config Config) *Scanner {
 	return &Scanner{config: config}
 }
 
+// GetConfig returns a copy of the current scanner configuration
+func (s *Scanner) GetConfig() Config {
+	return s.config
+}
+
+// UpdateConfig updates the scanner configuration
+func (s *Scanner) UpdateConfig(config Config) {
+	s.config = config
+}
+
 // loadSystemCAs loads system CA certificates
 func loadSystemCAs() *zx509.CertPool {
 	caPool := zx509.NewCertPool()

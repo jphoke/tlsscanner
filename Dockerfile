@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Accept build argument for swagger host
 ARG SWAGGER_HOST=localhost:8000

@@ -81,7 +81,7 @@ func buildSSLv3ClientHello() ([]byte, error) {
 
 	// Generate 32 random bytes (4 bytes timestamp + 28 random)
 	randomBytes := make([]byte, 32)
-	binary.BigEndian.PutUint32(randomBytes[0:4], uint32(time.Now().Unix()))
+	binary.BigEndian.PutUint32(randomBytes[0:4], uint32(time.Now().Unix())) // #nosec G115 - Unix timestamp fits in uint32 until year 2106
 	if _, err := rand.Read(randomBytes[4:]); err != nil {
 		// This should never fail with crypto/rand
 		return nil, fmt.Errorf("failed to generate random bytes: %w", err)
@@ -100,7 +100,7 @@ func buildSSLv3ClientHello() ([]byte, error) {
 	clientHello.WriteByte(0)
 	
 	// Cipher suites length
-	_ = binary.Write(&clientHello, binary.BigEndian, uint16(len(sslv3CipherSuites)*2)) // Writing to buffer cannot fail
+	_ = binary.Write(&clientHello, binary.BigEndian, uint16(len(sslv3CipherSuites)*2)) // #nosec G115 - Cipher suite list size is controlled and small
 	
 	// Cipher suites
 	for _, suite := range sslv3CipherSuites {
@@ -136,7 +136,7 @@ func buildSSLv3ClientHello() ([]byte, error) {
 	_ = binary.Write(&buf, binary.BigEndian, uint16(sslv3Version)) // Writing to buffer cannot fail
 	
 	// Record length
-	_ = binary.Write(&buf, binary.BigEndian, uint16(handshake.Len())) // Writing to buffer cannot fail
+	_ = binary.Write(&buf, binary.BigEndian, uint16(handshake.Len())) // #nosec G115 - Handshake length is controlled and fits in uint16
 	
 	// Record payload
 	buf.Write(handshake.Bytes())

@@ -208,7 +208,7 @@ type BatchTarget struct {
 
 // runBatchScan processes a CSV file with multiple targets
 func runBatchScan(s *scanner.Scanner, filename string, jsonOutput, summaryOnly bool) error {
-	file, err := os.Open(filename)
+	file, err := os.Open(filename) // #nosec G304 - CLI tool, user-provided filename is expected
 	if err != nil {
 		return fmt.Errorf("cannot open batch file: %w", err)
 	}

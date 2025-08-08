@@ -138,7 +138,7 @@ info:
   contact: {}
   description: Request body for submitting a new TLS/SSL scan
   title: TLS Scanner Portal API
-  version: 1.0.0
+  version: 1.2.0
 paths:
   /health:
     get:

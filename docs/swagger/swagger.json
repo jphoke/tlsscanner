@@ -8,7 +8,7 @@
         "description": "Request body for submitting a new TLS/SSL scan",
         "title": "TLS Scanner Portal API",
         "contact": {},
-        "version": "1.0.0"
+        "version": "1.2.0"
     },
     "host": "localhost:8000",
     "basePath": "/api/v1",

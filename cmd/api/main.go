@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -300,17 +301,34 @@ func main() {
 func (s *Server) createScan(c *gin.Context) {
 	ctx := c.Request.Context()
 	
-	// Try to parse as array first (batch request)
-	var batchReq []ScanRequest
-	if err := c.ShouldBindJSON(&batchReq); err == nil {
-		// It's a batch request
+	// Read the raw JSON to determine if it's an array or object
+	body, err := c.GetRawData()
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Failed to read request body"})
+		return
+	}
+	
+	// Check if it's an array by looking at the first character
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		c.JSON(400, gin.H{"error": "Empty request body"})
+		return
+	}
+	
+	if trimmed[0] == '[' {
+		// It's an array - batch request
+		var batchReq []ScanRequest
+		if err := json.Unmarshal(body, &batchReq); err != nil {
+			c.JSON(400, gin.H{"error": "Invalid batch request format"})
+			return
+		}
 		s.handleBatchScan(c, batchReq)
 		return
 	}
 	
-	// Not an array, try single request
+	// It's a single object
 	var req ScanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := json.Unmarshal(body, &req); err != nil {
 		c.JSON(400, gin.H{"error": "Invalid request format"})
 		return
 	}

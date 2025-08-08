@@ -2,7 +2,8 @@ package scanner
 
 import (
 	"context"
-	"crypto/dsa" //nolint:staticcheck // SA1019: Need deprecated crypto for security scanning
+	//lint:ignore SA1019 Need deprecated crypto for security scanning
+	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -383,7 +384,8 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 		name    string
 		version uint16
 	}{
-		{"SSL 3.0", ztls.VersionSSL30}, // Won't actually work in modern Go
+		//lint:ignore SA1019 Detecting SSL v3 is a feature
+		{"SSL 3.0", ztls.VersionSSL30},
 		{"TLS 1.0", ztls.VersionTLS10},
 		{"TLS 1.1", ztls.VersionTLS11},
 		{"TLS 1.2", ztls.VersionTLS12},
@@ -454,6 +456,7 @@ func (s *Scanner) ScanTarget(target string) (*Result, error) {
 }
 
 func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo ServiceInfo) bool {
+	//lint:ignore SA1019 Detecting SSL v3 is a feature
 	if s.config.Verbose && version == ztls.VersionSSL30 {
 		fmt.Printf("DEBUG: Testing SSL v3 protocol (version=0x%04x)\n", version)
 	}
@@ -465,6 +468,7 @@ func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo Se
 	}
 	
 	// For SSL v3, try to force it more explicitly
+	//lint:ignore SA1019 Detecting SSL v3 is a feature
 	if version == ztls.VersionSSL30 && s.config.Verbose {
 		fmt.Printf("DEBUG: Attempting SSL v3 connection (MinVersion=0x%04x, MaxVersion=0x%04x)\n", version, version)
 	}
@@ -485,7 +489,8 @@ func (s *Scanner) testProtocol(host, port string, version uint16, serviceInfo Se
 	}
 	
 	if err != nil {
-		if s.config.Verbose && version == ztls.VersionSSL30 {
+		//lint:ignore SA1019 Detecting SSL v3 is a feature
+	if s.config.Verbose && version == ztls.VersionSSL30 {
 			fmt.Printf("DEBUG: SSL v3 test failed: %v\n", err)
 		}
 		return false
@@ -1521,7 +1526,8 @@ func calculateProtocolScore(result *Result) int {
 	
 	// SSL Labs protocol scoring - updated to match real SSL Labs
 	protocolScores := map[uint16]int{
-		ztls.VersionSSL30: 0,   // SSL 3.0 - Automatic F
+		//lint:ignore SA1019 Detecting SSL v3 is a feature - Automatic F
+		ztls.VersionSSL30: 0,
 		ztls.VersionTLS10: 20,  // TLS 1.0 - Deprecated
 		ztls.VersionTLS11: 40,  // TLS 1.1 - Deprecated  
 		ztls.VersionTLS12: 95,  // TLS 1.2
@@ -1717,6 +1723,7 @@ func calculateSubcategoryGrades(result *Result) {
 	for _, proto := range result.SupportedProtocols {
 		if proto.Enabled {
 			switch proto.Version {
+			//lint:ignore SA1019 Detecting SSL v3 is a feature
 			case ztls.VersionSSL30:
 				protocolScore = 0  // Auto-fail for SSL 3.0
 			case ztls.VersionTLS10:
@@ -1841,6 +1848,7 @@ func identifyProtocolDegradations(result *Result) {
 	for _, proto := range result.SupportedProtocols {
 		if proto.Enabled {
 			switch proto.Version {
+			//lint:ignore SA1019 Detecting SSL v3 is a feature
 			case ztls.VersionSSL30:
 				weakProtocols = append(weakProtocols, proto.Name)
 			case ztls.VersionTLS10:

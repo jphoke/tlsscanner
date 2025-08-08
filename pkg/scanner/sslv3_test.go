@@ -7,7 +7,10 @@ import (
 )
 
 func TestBuildSSLv3ClientHello(t *testing.T) {
-	clientHello := buildSSLv3ClientHello()
+	clientHello, err := buildSSLv3ClientHello()
+	if err != nil {
+		t.Fatalf("Failed to build ClientHello: %v", err)
+	}
 	
 	// Verify minimum length (5 byte record header + handshake message)
 	if len(clientHello) < 5 {

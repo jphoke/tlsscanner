@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jphoke/tlsscanner-portal/pkg/scanner"
+	"github.com/jphoke/tlsscanner/pkg/scanner"
 )
 
 func main() {

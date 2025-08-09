@@ -23,13 +23,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/jphoke/tlsscanner-portal/pkg/scanner"
+	"github.com/jphoke/tlsscanner/pkg/scanner"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "github.com/jphoke/tlsscanner-portal/docs/swagger" // swagger docs
+	_ "github.com/jphoke/tlsscanner/docs/swagger" // swagger docs
 )
 
 type Server struct {

@@ -1,4 +1,4 @@
-module github.com/jphoke/tlsscanner-portal
+module github.com/jphoke/tlsscanner
 
 go 1.23.0
 

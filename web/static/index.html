@@ -183,6 +183,17 @@
             return { valid: true, cleaned: comments.trim() };
         }
         
+        // HTML escaping function to prevent XSS
+        function escapeHtml(unsafe) {
+            if (unsafe === null || unsafe === undefined) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
         document.getElementById('scanForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -246,7 +257,7 @@
                 
             } catch (error) {
                 results.style.display = 'block';
-                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                results.innerHTML = `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
                 button.disabled = false;
                 button.textContent = 'Start Scan';
             }
@@ -268,7 +279,7 @@
                     } else if (data.status === 'failed') {
                         clearInterval(interval);
                         document.getElementById('results').innerHTML = `
-                            <div class="error">Scan failed: ${data.error || 'Unknown error'}</div>
+                            <div class="error">Scan failed: ${escapeHtml(data.error || 'Unknown error')}</div>
                         `;
                         document.getElementById('scanButton').disabled = false;
                         document.getElementById('scanButton').textContent = 'Start Scan';
@@ -276,7 +287,7 @@
                 } catch (error) {
                     clearInterval(interval);
                     document.getElementById('results').innerHTML = `
-                        <div class="error">Error fetching results: ${error.message}</div>
+                        <div class="error">Error fetching results: ${escapeHtml(error.message)}</div>
                     `;
                     document.getElementById('scanButton').disabled = false;
                     document.getElementById('scanButton').textContent = 'Start Scan';
@@ -291,14 +302,14 @@
             let html = `
                 <h2>Scan Results</h2>
                 <div style="display: flex; align-items: center; margin: 20px 0;">
-                    <div class="grade ${gradeClass}">${data.grade || 'N/A'}</div>
+                    <div class="grade ${gradeClass}">${escapeHtml(data.grade || 'N/A')}</div>
                     <div>
-                        <h3>${result.target || 'Unknown Target'}</h3>
+                        <h3>${escapeHtml(result.target || 'Unknown Target')}</h3>
                         ${data.grade === 'N/A' || !data.score
                             ? '<p>Certificate has critical issues</p>' 
-                            : `<p>Overall Score: ${data.score}/100</p>`}
-                        <p style="font-size: 12px; color: #7f8c8d;">Scan ID: ${data.id || 'Unknown'}</p>
-                        ${data.comments ? `<p style="font-size: 13px; color: #34495e; font-style: italic;">Comments: ${data.comments}</p>` : ''}
+                            : `<p>Overall Score: ${escapeHtml(data.score)}/100</p>`}
+                        <p style="font-size: 12px; color: #7f8c8d;">Scan ID: ${escapeHtml(data.id || 'Unknown')}</p>
+                        ${data.comments ? `<p style="font-size: 13px; color: #34495e; font-style: italic;">Comments: ${escapeHtml(data.comments)}</p>` : ''}
                     </div>
                 </div>
             `;
@@ -372,11 +383,11 @@
                     issuesByCategory[category].forEach(issue => {
                         html += `
                             <div class="issue-item">
-                                <div class="issue-header">${issue.issue}</div>
-                                <div class="issue-details">Details: ${issue.details}</div>
-                                <div class="issue-impact">Impact: ${issue.impact}</div>
+                                <div class="issue-header">${escapeHtml(issue.issue)}</div>
+                                <div class="issue-details">Details: ${escapeHtml(issue.details)}</div>
+                                <div class="issue-impact">Impact: ${escapeHtml(issue.impact)}</div>
                                 <div class="issue-remediation">
-                                    <strong>How to fix:</strong> ${issue.remediation}
+                                    <strong>How to fix:</strong> ${escapeHtml(issue.remediation)}
                                 </div>
                             </div>
                         `;

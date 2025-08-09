@@ -1,4 +1,5 @@
 # TLS Scanner Portal
+<img width="1280" height="640" alt="tlsscanner-go-speed" src="https://github.com/user-attachments/assets/a5490b65-9b14-47a3-9b8c-fd46cd55e3da" />
 
 Lightning-fast TLS/SSL security scanner with web UI. Get comprehensive security analysis in seconds, not minutes.
 
@@ -9,7 +10,7 @@ This project began as a learning exercise to explore Claude Code's capabilities 
 The traditional bash-based TLS scanners were painfully slow, often taking minutes to complete basic scans. Security teams need tools that match the pace of modern development - fast, API-driven, and deployable anywhere. This scanner delivers sub-second results while providing deeper analysis than most alternatives.
 
 Built with modern security teams in mind, TLS Scanner Portal offers:
-- **Speed**: 100x faster than traditional scanners - get results in milliseconds, not minutes
+- **Speed**: Faster than traditional scanners - get results in milliseconds, not minutes
 - **Depth**: Enhanced vulnerability detection using zcrypto for research-grade analysis
 - **Integration**: REST API and WebSocket support for seamless automation
 - **Deployment**: Docker-based architecture runs anywhere your infrastructure lives
@@ -38,7 +39,7 @@ This tool is designed exclusively for:
 - ❌ Exploiting discovered vulnerabilities
 - ❌ Any malicious or unauthorized purposes
 
-This is a defensive security tool - think "security team's best friend," not "hacker's toolkit."
+This is a defensive security tool - think "security team's best friend", not "scriptkiddie toyz".
 
 ## Upgrading from Previous Versions
 
@@ -56,7 +57,7 @@ Open http://localhost:3000 - that's it!
 
 ## Features
 
-- ⚡ 100x faster than bash-based scanners
+- ⚡ Faster than bash-based scanners
 - 🏆 SSL Labs grading
 - 📧 Automatic STARTTLS for mail servers, FTP, and more
 - 🔍 Enhanced vulnerability detection with CVE tracking
@@ -83,14 +84,6 @@ Open http://localhost:3000 - that's it!
   <img width="608" height="1133" alt="Screenshot 2025-07-29 at 08 12 12" src="https://github.com/user-attachments/assets/b84e16fc-81b7-48fa-8377-4e6820199c57" />
 
   <p><em>Output of "badssl.com" showing security issues and remediation steps</em></p>
-</div>
-
- <br/>
-
-<div align="center">
-<img width="591" height="592" alt="Screenshot 2025-07-29 at 08 06 34" src="https://github.com/user-attachments/assets/ac7a172d-3cb4-4ee8-ac49-1c3c9373d88b" />
-
-  <p><em>Grade A result demonstrating compliant security configuration</em></p>
 </div>
 
   <br/>

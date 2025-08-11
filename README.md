@@ -73,33 +73,25 @@ Open http://localhost:3000 - that's it!
 ## Screenshots
 
 <div align="center">
-<img width="626" height="915" alt="Screenshot 2025-07-29 at 08 05 35" src="https://github.com/user-attachments/assets/29105479-53b9-4ffd-92e0-b556c9dc0a5a" />
-
+  <img width="1008" height="876" alt="MainPortalView" src="https://github.com/user-attachments/assets/15f27d7e-c564-4d26-8a60-0daba6ca93dc" />
   <p><em>Main portal interface - Simple and intuitive scanning</em></p>
 </div>
 
   <br/>
 
 <div align="center">
-  <img width="608" height="1133" alt="Screenshot 2025-07-29 at 08 12 12" src="https://github.com/user-attachments/assets/b84e16fc-81b7-48fa-8377-4e6820199c57" />
-
-  <p><em>Output of "badssl.com" showing security issues and remediation steps</em></p>
+  <img width="1011" height="1588" alt="expiredCertFail" src="https://github.com/user-attachments/assets/fcbbd274-3f7c-465e-9609-37e2944fb937" />
+  <p><em>Output of "expired.badssl.com" showing security issues and remediation steps</em></p>
 </div>
 
   <br/>
 
 <div align="center">
-<img width="591" height="1107" alt="Screenshot 2025-07-29 at 08 07 36" src="https://github.com/user-attachments/assets/aacf4c9a-cfe2-43ad-86ae-d60e68d7223b" />
-
+  <img width="988" height="1104" alt="smtpsViaSTARTTLS" src="https://github.com/user-attachments/assets/d6d3c5e8-1df2-492a-b4bf-e1bd4fb7f829" />
   <p><em>Scan results for SMTP/S Connections using STARTTLS</em></p>
 </div>
 
-<br/>
 
-<div align="center">
-  <img width="1447" alt="Screenshot of Swagger API Documents" src="https://github.com/user-attachments/assets/55960b63-76a6-430d-81c5-311a35db0723" />
-  <p><em>Interactive API documentation with Swagger UI</em></p>
-</div>
 
 ## Basic Usage
 

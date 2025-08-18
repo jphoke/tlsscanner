@@ -1,5 +1,5 @@
 // @title TLS Scanner Portal API
-// @version 1.2.0
+// @version 1.2.1
 // @description High-performance TLS/SSL security scanner API with SSL Labs grading and batch scanning support
 // @host localhost:8000
 // @BasePath /api/v1

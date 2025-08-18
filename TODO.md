@@ -16,18 +16,13 @@ See [CHANGELOG.md](CHANGELOG.md) for complete feature history.
 - [ ] PostgreSQL (port 5432) - SSLRequest packet
 - [ ] MySQL (port 3306) - SSL capability flag
 - [ ] LDAP (port 389) - StartTLS extended operation
-- [ ] XMPP/Jabber (port 5222)
-- [ ] **NNTP** with STARTTLS (port 119)
 
 ### Deployment & Operations
 - [ ] Production environment configuration
 - [ ] SSL/TLS certificates for portal itself
 - [ ] Nginx reverse proxy configuration
-- [ ] Monitoring setup (Prometheus/Grafana)
 - [ ] PostgreSQL backup strategy
-- [ ] Load testing and optimization
-- [ ] Security hardening checklist
-- [ ] Docker image optimization
+
 
 ## 📈 Medium Priority - Feature Enhancements
 
@@ -93,11 +88,15 @@ See [CHANGELOG.md](CHANGELOG.md) for complete feature history.
 - [ ] Browser extension
 - [ ] Dark/light theme toggle
 - [ ] Customizable dashboards
+- [ ] Monitoring setup (Prometheus/Grafana)
+- [ ] Load testing and optimization
+- [ ] Security hardening checklist
+- [ ] Docker image optimization
+
 
 ## 🐛 Known Issues
 
-1. Cannot detect SSL v2/v3 (zcrypto also blocks SSL v3 despite being a research library)
-   - Workaround Implmemented:  Raw socket implementation for SSL v3 detection
+1. Cannot detect SSL v2 
 2. Certificate key size not calculated
 3. No client certificate authentication support
 4. Full chain validation requires system roots

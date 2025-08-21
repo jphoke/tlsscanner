@@ -126,9 +126,13 @@ func New(config Config) *Scanner {
 		config.MaxConcurrency = 10
 	}
 	
-	// Load custom CAs if path is provided
+	// Load custom CAs if path is provided and directory exists
 	if config.CustomCAPath != "" && config.CustomCAs == nil {
-		config.CustomCAs = loadCustomCAs(config.CustomCAPath, config.Verbose)
+		if _, err := os.Stat(config.CustomCAPath); err == nil {
+			config.CustomCAs = loadCustomCAs(config.CustomCAPath, config.Verbose)
+		} else if config.Verbose {
+			fmt.Printf("Custom CA directory %s not found, using system CAs only\n", config.CustomCAPath)
+		}
 	}
 	
 	return &Scanner{config: config}
@@ -1568,7 +1572,11 @@ func calculateKeyExchangeScore(result *Result) int {
 		score := 0
 		
 		// Score based on key exchange algorithm
-		if strings.Contains(cipher.Name, "ECDHE") {
+		// TLS 1.3 ciphers always use ECDHE (perfect forward secrecy)
+		if strings.HasPrefix(cipher.Name, "TLS_AES_") || 
+		   strings.HasPrefix(cipher.Name, "TLS_CHACHA20_") {
+			score = 100 // TLS 1.3 always uses ECDHE
+		} else if strings.Contains(cipher.Name, "ECDHE") {
 			score = 100 // ECDHE is best
 		} else if strings.Contains(cipher.Name, "DHE") {
 			score = 90  // DHE is good

@@ -1,0 +1,5 @@
+# Ignore all certificate files
+*
+# But keep this .gitignore and README
+!.gitignore
+!README.md

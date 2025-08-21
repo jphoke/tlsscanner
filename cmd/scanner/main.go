@@ -21,7 +21,7 @@ func main() {
 		timeout    = flag.Duration("timeout", 10*time.Second, "Connection timeout")
 		jsonOutput = flag.Bool("json", false, "Output as JSON")
 		verbose    = flag.Bool("v", false, "Verbose output")
-		caPath     = flag.String("ca-path", "", "Path to directory containing custom CA certificates")
+		caPath     = flag.String("ca-path", "custom-ca", "Path to directory containing custom CA certificates (default: custom-ca)")
 		checkSSLv3 = flag.Bool("check-sslv3", false, "Enable SSL v3 detection (uses raw sockets)")
 		summary    = flag.Bool("summary", false, "Show summary only for batch scans")
 	)

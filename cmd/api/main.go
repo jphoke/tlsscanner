@@ -229,10 +229,16 @@ func main() {
 	})
 	
 	// Scanner instance
+	// Use custom-ca as default if CUSTOM_CA_PATH not set
+	customCAPath := os.Getenv("CUSTOM_CA_PATH")
+	if customCAPath == "" {
+		customCAPath = "custom-ca"
+	}
+	
 	scannerConfig := scanner.Config{
 		Timeout:        10 * time.Second,
 		MaxConcurrency: 10,
-		CustomCAPath:   os.Getenv("CUSTOM_CA_PATH"),
+		CustomCAPath:   customCAPath,
 		Verbose:        os.Getenv("SCANNER_VERBOSE") == "true",
 	}
 	s := scanner.New(scannerConfig)
@@ -1058,10 +1064,16 @@ func (s *Server) worker(id int) {
 		}
 		
 		// Create scanner config for this specific scan
+		// Use custom-ca as default if CUSTOM_CA_PATH not set
+		customCAPath := os.Getenv("CUSTOM_CA_PATH")
+		if customCAPath == "" {
+			customCAPath = "custom-ca"
+		}
+		
 		scannerConfig := scanner.Config{
 			Timeout:        10 * time.Second,
 			MaxConcurrency: 10,
-			CustomCAPath:   os.Getenv("CUSTOM_CA_PATH"),
+			CustomCAPath:   customCAPath,
 			Verbose:        os.Getenv("SCANNER_VERBOSE") == "true",
 			CheckSSLv3:     checkSSLv3,
 		}

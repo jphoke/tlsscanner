@@ -37,6 +37,10 @@ The fastest way to get started (covered in README):
 ```bash
 git clone https://github.com/jphoke/tlsscanner
 cd tlsscanner
+
+# Copy nginx configuration template
+cp nginx.conf.example nginx.conf
+
 docker compose up -d
 ```
 
@@ -131,7 +135,14 @@ sudo git clone https://github.com/jphoke/tlsscanner
 cd /opt/tlsscanner
 ```
 
-2. **Configure environment:**
+2. **Configure nginx:**
+```bash
+# Copy nginx configuration template
+cp nginx.conf.example nginx.conf
+# Edit nginx.conf if you need HTTPS or custom settings
+```
+
+3. **Configure environment:**
 ```bash
 cp .env.example .env
 ```

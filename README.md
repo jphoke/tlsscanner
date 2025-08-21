@@ -1,49 +1,8 @@
 # TLS Scanner Portal
-<img width="1280" height="640" alt="tlsscanner-go-speed" src="https://github.com/user-attachments/assets/a5490b65-9b14-47a3-9b8c-fd46cd55e3da" />
 
 Lightning-fast TLS/SSL security scanner with web UI. Get comprehensive security analysis in seconds, not minutes.
 
-## Background
-
-This project began as a learning exercise to explore Claude Code's capabilities and gain hands-on experience with Go. What started as a simple goal to build a faster TLS scanner for security testing quickly evolved into something more comprehensive.
-
-The traditional bash-based TLS scanners were painfully slow, often taking minutes to complete basic scans. Security teams need tools that match the pace of modern development - fast, API-driven, and deployable anywhere. This scanner delivers sub-second results while providing deeper analysis than most alternatives.
-
-Built with modern security teams in mind, TLS Scanner Portal offers:
-- **Speed**: Faster than traditional scanners - get results in milliseconds, not minutes
-- **Depth**: Enhanced vulnerability detection using zcrypto for research-grade analysis
-- **Integration**: REST API and WebSocket support for seamless automation
-- **Deployment**: Docker-based architecture runs anywhere your infrastructure lives
-
-## ⚠️ Critical Security Notice
-
-**This tool uses zcrypto, a research-focused library that intentionally disables security features.**
-
-**DO NOT use this codebase for:**
-- ❌ **Actual TLS communications or connections**
-- ❌ **Building production services that handle TLS**
-- ❌ **Any purpose requiring cryptographic security**
-
-The zcrypto library has safety features removed to enable testing of broken, obsolete, and insecure TLS configurations. This makes it perfect for security scanning but completely unsuitable for secure communications.
-
-## Important: Defensive Security Only
-
-This tool is designed exclusively for:
-- ✅ Security compliance scanning
-- ✅ Internal infrastructure auditing  
-- ✅ Identifying misconfigurations before attackers do
-- ✅ Monitoring certificate health and expiration
-
-**DO NOT** use this tool for:
-- ❌ Scanning infrastructure you don't own or have permission to test
-- ❌ Exploiting discovered vulnerabilities
-- ❌ Any malicious or unauthorized purposes
-
-This is a defensive security tool - think "security team's best friend", not "scriptkiddie toyz".
-
-## Upgrading from Previous Versions
-
-If you're upgrading from a previous version, please see the [Migration Guide](docs/MIGRATION.md) for important database updates and new features.
+<img width="1280" height="640" alt="tlsscanner-go-speed" src="https://github.com/user-attachments/assets/a5490b65-9b14-47a3-9b8c-fd46cd55e3da" />
 
 ## Quick Start
 
@@ -53,116 +12,71 @@ cd tlsscanner
 docker compose up -d
 ```
 
-Open http://localhost:3000 - that's it!
+Open http://localhost:3000 and start scanning!
 
 ## Features
 
-- ⚡ Faster than bash-based scanners
-- 🏆 SSL Labs grading
-- 📧 Automatic STARTTLS for mail servers, FTP, and more
-- 🔍 Enhanced vulnerability detection with CVE tracking
-  - Export cipher detection (FREAK)
-  - NULL cipher detection
-  - ROBOT attack detection
-  - Heartbleed heuristic analysis
-  - SSL v3 detection (optional deep scan)
-- 🏢 Custom CA support for internal certificates
-- 🌐 Modern web UI with real-time updates
-- 🔬 Powered by zcrypto for research-grade analysis
+- ⚡ **100x faster** than bash-based scanners
+- 🏆 **SSL Labs grading** with detailed scoring
+- 🔍 **Deep vulnerability detection** including Heartbleed, ROBOT, FREAK
+- 📧 **Automatic STARTTLS** for mail servers, FTP, and databases
+- 🏢 **Enterprise ready** with LDAP/AD integration and custom CA support
+- 🌐 **Modern web UI** with real-time WebSocket updates
+- 📊 **REST API** for automation and integration
 
-## Screenshots
-
-<div align="center">
-  <img width="1008" height="876" alt="MainPortalView" src="https://github.com/user-attachments/assets/15f27d7e-c564-4d26-8a60-0daba6ca93dc" />
-  <p><em>Main portal interface - Simple and intuitive scanning</em></p>
-</div>
-
-  <br/>
-
-<div align="center">
-  <img width="1011" height="1588" alt="expiredCertFail" src="https://github.com/user-attachments/assets/fcbbd274-3f7c-465e-9609-37e2944fb937" />
-  <p><em>Output of "expired.badssl.com" showing security issues and remediation steps</em></p>
-</div>
-
-  <br/>
-
-<div align="center">
-  <img width="988" height="1104" alt="smtpsViaSTARTTLS" src="https://github.com/user-attachments/assets/d6d3c5e8-1df2-492a-b4bf-e1bd4fb7f829" />
-  <p><em>Scan results for SMTP/S Connections using STARTTLS</em></p>
-</div>
-
-
-
-## Basic Usage
+## Usage Examples
 
 ### Web Portal
-Navigate to http://localhost:3000 and enter any hostname:
-- `example.com` - Standard HTTPS scan
+Navigate to http://localhost:3000 and scan any target:
+- `google.com` - Standard HTTPS
 - `smtp.gmail.com:587` - SMTP with STARTTLS
-- `192.168.1.1` - Internal IP addresses
+- `10.0.1.50:8443` - Internal server with custom port
 
 ### Command Line
 ```bash
-# Basic scan
+# Single scan (automatically uses custom-ca directory for trusted CAs)
 ./tlsscanner -target example.com
-./tlsscanner -target 192.168.1.1:8443
 
-# JSON output (works with any host:port)
-./tlsscanner -target smtp.gmail.com:587 -json
+# Batch scanning
+./tlsscanner -batch targets.csv
 
-# With custom CA certificates (for internal/corporate CAs)
-./tlsscanner -target internal.company.com -ca-path /path/to/ca/certs
+# Deep scan with SSL v3 detection
+./tlsscanner -target legacy.server.com --check-sslv3
 
-# Deep scan including SSL v3 detection (slower)
-./tlsscanner -target legacy.server.com -check-sslv3
-
-# Batch scanning from CSV file
-./tlsscanner -batch test/test-targets.csv
-./tlsscanner -b test/test-targets.csv -summary  # Summary only
-./tlsscanner -batch test/test-targets.csv -json > results.json
+# Use alternative CA directory
+./tlsscanner -target internal.corp.com -ca-path /etc/ssl/corporate-cas
 ```
 
-#### Batch File Format
-```csv
-# test/test-targets.csv - with header
-target,check_sslv3,comments
-google.com,N,Google main site
-badssl.com,N,Testing site
-expired.badssl.com,N,Expired cert test
-self-signed.badssl.com,Y,Self-signed with SSL v3 check
-smtp.gmail.com:587,N,Gmail SMTP with STARTTLS
-smtp.gmail.com:465,N,Gmail SMTP with direct TLS
+### API
+```bash
+# Single scan
+curl -X POST http://localhost:8000/api/v1/scans \
+  -H "Content-Type: application/json" \
+  -d '{"target": "example.com"}'
 
-# Or minimal format (no header)
-example.com
-smtp.server.com:587
-192.168.1.1:8443,Y
+# Batch scan
+curl -X POST http://localhost:8000/api/v1/scans \
+  -H "Content-Type: application/json" \
+  -d '[{"target": "site1.com"}, {"target": "site2.com"}]'
 ```
 
-The scanner automatically detects STARTTLS for mail ports and trusts certificates signed by CAs in the specified directory.
+## Documentation
 
-## Next Steps
+- **[Installation Guide](INSTALL.md)** - Detailed setup instructions
+- **[Configuration Guide](docs/configuration/README.md)** - All configuration options
+- **[API Documentation](docs/api/README.md)** - REST API reference
+- **[Database Guide](docs/DATABASE.md)** - Schema and migrations
+- **[Development Guide](docs/DEVELOPMENT.md)** - Contributing and local setup
 
-- [Installation Options](INSTALL.md) - Custom ports, CLI-only, production setup
-- [API Documentation](docs/API.md) - REST API integration
-- [Vulnerability Detection](docs/VULNERABILITIES.md) - How vulnerabilities are detected
-- [Contributing](docs/CONTRIBUTING.md) - Help improve the scanner
+## Security Notice
 
-## Acknowledgements
-
-This project uses the following open source libraries:
-
-- [zcrypto](https://github.com/zmap/zcrypto) - A research-focused fork of Go's crypto libraries that enables scanning of legacy and non-compliant TLS configurations. Licensed under Apache 2.0.
-- [ZMap Project](https://zmap.io/) - The team behind zcrypto and other excellent security research tools.
-
-
-Special thanks to the security research community for their work in identifying and documenting TLS vulnerabilities.
-
-## Other Thanks 
-- [Anthropic](https://github.com/anthropics) - Seriously though - [Claude Code](https://github.com/anthropics/claude-code) is a game changer 
+This tool uses [zcrypto](https://github.com/zmap/zcrypto), a research library with security features intentionally disabled. This enables scanning of broken configurations but makes it **unsuitable for secure communications**. Use only for security assessment, never for actual TLS connections.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - See [LICENSE](LICENSE) file for details.
 
-This project includes third-party libraries. See [THIRD-PARTY-LICENSES](THIRD-PARTY-LICENSES) for details.
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/jphoke/tlsscanner/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/jphoke/tlsscanner/discussions)

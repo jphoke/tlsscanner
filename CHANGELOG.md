@@ -4,6 +4,91 @@ All notable changes to TLS Scanner Portal (TLS-GO(ld)) will be documented in thi
 
 ## [Unreleased]
 
+### Added - Authentication & Authorization Framework
+- **Optional Authentication System**: Flexible auth modes for different deployment scenarios
+  - Three modes: `none` (default), `optional`, `required`
+  - Local user database with bcrypt password hashing
+  - JWT-based authentication with refresh tokens
+  - Role-based access control (RBAC) with 4 roles: super_admin, admin, operator, viewer
+  - Session management with configurable timeouts
+
+- **LDAP/Active Directory Integration**: Enterprise authentication support
+  - Full AD/LDAP authentication with configurable filters
+  - Group-to-role mapping for automatic authorization
+  - Support for nested AD groups
+  - Compatible with OpenLDAP, FreeIPA, and Microsoft AD
+  - Connection pooling for performance
+  - Optional user synchronization to local database
+
+- **Admin Features**: Data management and system monitoring
+  - User management interface (when auth enabled)
+  - Data retention policies with automatic pruning
+  - Audit logging for all admin actions
+  - System configuration management
+  - Bulk scan data deletion
+  - Export functionality (JSON/CSV)
+  - API key management for programmatic access
+
+### Added - HTTPS/TLS Configuration
+- **Production HTTPS Support**: Full SSL/TLS configuration for nginx
+  - Support for custom certificates (DigiCert, internal CA, etc.)
+  - Let's Encrypt automatic certificate support
+  - Certificate CSR generation script
+  - Configurable HTTPS ports (default 3443)
+  - HTTP to HTTPS redirect options
+  - Modern TLS configuration (TLS 1.2+ only)
+  - Security headers (HSTS, X-Frame-Options, CSP)
+  - OCSP stapling support
+
+### Added - Database Schema Versioning
+- **Schema Versioning System**: Automatic version tracking and upgrades
+  - Version detection and migration scripts
+  - `check-schema-version.sh` for automated upgrades
+  - Safe upgrade from v1 to v2 with data preservation
+  - Migration history tracking
+  - All tables created upfront (even if unused)
+
+- **New Database Tables**:
+  - `users` - User accounts and authentication
+  - `refresh_tokens` - JWT refresh token storage
+  - `audit_log` - Admin action tracking
+  - `api_keys` - Programmatic access tokens
+  - `data_retention_policies` - Automated cleanup configuration
+  - `system_config` - Runtime configuration storage
+  - `schema_version` - Database version tracking
+  - `migration_history` - Upgrade audit trail
+
+### Changed - Documentation Restructure
+- **Simplified Documentation**: Reorganized for better navigation
+  - Consolidated database docs into single `DATABASE.md`
+  - Created `docs/configuration/` directory for all config docs
+  - Moved API docs to `docs/api/` directory
+  - Simplified README to focus on quick start
+  - Removed redundant content across multiple files
+  - Clear hierarchy: Overview → Installation → Configuration → API
+
+### Changed - Infrastructure Updates
+- **Docker Compose Enhancements**:
+  - Added certificate volume mounts for nginx
+  - Support for both HTTP and HTTPS ports
+  - Environment variable pass-through for auth configuration
+  - Schema v2 used by default for new installations
+- **Nginx Configuration**:
+  - Added `nginx.conf.example` template file
+  - Added `nginx.conf` to `.gitignore` to prevent deployment-specific configs being committed
+  - Updated installation docs to copy template during setup
+
+### Changed - Scanner Improvements - 2025-08-21
+- **Custom CA Loading**: Now loads from `custom-ca` directory by default
+  - No longer requires `-ca-path` flag for standard deployments
+  - Automatically loads CAs from `custom-ca` directory if it exists
+  - `-ca-path` flag now only needed for alternative CA directories
+  - Works consistently across CLI and API
+- **TLS 1.3 Key Exchange Scoring**: Fixed scoring for modern ciphers
+  - TLS 1.3 ciphers now correctly score 100/100 for key exchange
+  - Recognizes that TLS 1.3 always uses ECDHE (perfect forward secrecy)
+  - Previously scored as 50/100 due to cipher naming differences
+
 ### Fixed - Security - 2025-08-09
 - **XSS Vulnerability Fixes**: Fixed DOM-based Cross-Site Scripting vulnerabilities in web UI
   - Added HTML escaping function to sanitize user inputs and API responses

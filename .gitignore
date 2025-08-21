@@ -60,6 +60,9 @@ custom-ca/*.ca
 !custom-ca/README.md
 
 
+# Nginx configuration (user-specific)
+nginx.conf
+
 # Certificates and keys
 *.key
 *.p12

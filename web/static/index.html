@@ -524,28 +524,97 @@
                 html += '</div></div>';
             }
             
-            // Protocols
+            // Protocols and Ciphers
             if (result.supported_protocols) {
                 html += `
                     <div class="section">
-                        <h3>Supported Protocols</h3>
-                        <ul class="protocol-list">
+                        <h3>Supported Protocols & Cipher Suites</h3>
+                        <div class="protocols-with-ciphers">
                 `;
+                
+                // Group cipher suites by protocol
+                const ciphersByProtocol = {};
+                if (data.result && data.result.cipher_suites) {
+                    data.result.cipher_suites.forEach(cipher => {
+                        const protocol = cipher.protocol || 'Unknown';
+                        if (!ciphersByProtocol[protocol]) {
+                            ciphersByProtocol[protocol] = [];
+                        }
+                        ciphersByProtocol[protocol].push(cipher);
+                    });
+                }
                 
                 result.supported_protocols.forEach(proto => {
                     if (proto.enabled) {
-                        let icon = proto.version >= 0x0303 ? '✅' : '⚠️';
-                        let className = '';
+                        let protoIcon = proto.version >= 0x0303 ? '✅' : '⚠️';
+                        let protoClassName = '';
                         // Special handling for SSL v3
                         if (proto.version === 0x0300) {
-                            icon = '🔴';
-                            className = 'ssl3-warning';
+                            protoIcon = '🔴';
+                            protoClassName = 'ssl3-warning';
                         }
-                        html += `<li class="${className}">${icon} ${proto.name}</li>`;
+                        
+                        html += `
+                            <div class="protocol-group">
+                                <div class="protocol-header ${protoClassName}">
+                                    ${protoIcon} <strong>${proto.name}</strong>
+                                </div>
+                        `;
+                        
+                        // Show ciphers for this protocol
+                        const protocolCiphers = ciphersByProtocol[proto.name] || [];
+                        if (protocolCiphers.length > 0) {
+                            // First, calculate icons for all ciphers
+                            const ciphersWithIcons = protocolCiphers.map(cipher => {
+                                let cipherIcon = '✅';
+                                let cipherClass = 'cipher-good';
+                                
+                                // Determine cipher quality
+                                if (cipher.strength === 'WEAK' || cipher.strength === 'INSECURE') {
+                                    cipherIcon = '❌';
+                                    cipherClass = 'cipher-bad';
+                                } else if (cipher.strength === 'MEDIUM' || !cipher.forward_secrecy) {
+                                    cipherIcon = '⚠️';
+                                    cipherClass = 'cipher-warning';
+                                }
+                                
+                                // Special cases
+                                if (cipher.name.includes('NULL') || cipher.name.includes('anon')) {
+                                    cipherIcon = '❌';
+                                    cipherClass = 'cipher-bad';
+                                } else if (cipher.name.includes('RC4') || cipher.name.includes('3DES')) {
+                                    cipherIcon = '❌';
+                                    cipherClass = 'cipher-bad';
+                                }
+                                
+                                return {
+                                    ...cipher,
+                                    icon: cipherIcon,
+                                    cssClass: cipherClass
+                                };
+                            });
+                            
+                            // Sort by icon: ✅ first, then ⚠️, then ❌
+                            ciphersWithIcons.sort((a, b) => {
+                                const iconOrder = {'✅': 1, '⚠️': 2, '❌': 3};
+                                return iconOrder[a.icon] - iconOrder[b.icon];
+                            });
+                            
+                            html += '<ul class="cipher-list">';
+                            ciphersWithIcons.forEach(cipher => {
+                                const pfsIndicator = cipher.forward_secrecy ? ' 🔐' : '';
+                                html += `<li class="${cipher.cssClass}">${cipher.icon} ${cipher.name}${pfsIndicator}</li>`;
+                            });
+                            html += '</ul>';
+                        } else {
+                            html += '<div class="no-ciphers">No cipher information available</div>';
+                        }
+                        
+                        html += '</div>';
                     }
                 });
                 
-                html += '</ul></div>';
+                html += '</div></div>';
             }
             
             // Vulnerabilities

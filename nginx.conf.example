@@ -1,0 +1,150 @@
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    upstream api {
+        server api:8080;
+    }
+
+    # =========================================================================
+    # HTTP Server (Port 80)
+    # This is currently active and serves your application over HTTP
+    # =========================================================================
+    server {
+        listen 80;
+        server_name localhost;
+
+        # ---------------------------------------------------------------------
+        # OPTIONAL: Redirect HTTP to HTTPS
+        # Uncomment the following lines to force all HTTP traffic to HTTPS
+        # (Only do this AFTER you have HTTPS working!)
+        # ---------------------------------------------------------------------
+        # return 301 https://$server_name$request_uri;
+        
+        # ---------------------------------------------------------------------
+        # Current HTTP Configuration (comment out if redirecting to HTTPS)
+        # ---------------------------------------------------------------------
+        
+        # Static files
+        location / {
+            root /usr/share/nginx/html;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # API proxy
+        location /api/ {
+            proxy_pass http://api;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+    # =========================================================================
+    # HTTPS Server (Port 443) - CURRENTLY DISABLED
+    # To enable HTTPS:
+    # 1. Place your certificates in ./nginx/certs/ on the host:
+    #    - tlsscanner.crt (your certificate)
+    #    - tlsscanner.key (your private key)
+    #    - ca-chain.crt (optional intermediate certificates)
+    # 2. Uncomment the entire server block below
+    # 3. Update 'server_name' to match your domain
+    # 4. Restart nginx: docker-compose restart nginx
+    # =========================================================================
+    
+    # server {
+    #     listen 443 ssl http2;
+    #     server_name localhost;  # CHANGE THIS to your actual domain
+    #
+    #     # -----------------------------------------------------------------
+    #     # SSL Certificate Configuration
+    #     # These paths are inside the container (don't change them)
+    #     # Your actual certs should be in ./nginx/certs/ on the host
+    #     # -----------------------------------------------------------------
+    #     ssl_certificate /etc/nginx/certs/tlsscanner.crt;
+    #     ssl_certificate_key /etc/nginx/certs/tlsscanner.key;
+    #     
+    #     # Optional: Include intermediate CA certificates
+    #     # ssl_trusted_certificate /etc/nginx/certs/ca-chain.crt;
+    #
+    #     # -----------------------------------------------------------------
+    #     # SSL Security Configuration (recommended settings)
+    #     # -----------------------------------------------------------------
+    #     # Modern SSL/TLS configuration (TLS 1.2 and 1.3 only)
+    #     ssl_protocols TLSv1.2 TLSv1.3;
+    #     
+    #     # Strong ciphers only
+    #     ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305;
+    #     ssl_prefer_server_ciphers off;
+    #     
+    #     # Enable OCSP stapling (requires intermediate cert)
+    #     # ssl_stapling on;
+    #     # ssl_stapling_verify on;
+    #     
+    #     # SSL session caching for better performance
+    #     ssl_session_cache shared:SSL:10m;
+    #     ssl_session_timeout 10m;
+    #
+    #     # -----------------------------------------------------------------
+    #     # Security Headers (recommended for production)
+    #     # -----------------------------------------------------------------
+    #     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    #     add_header X-Frame-Options "SAMEORIGIN" always;
+    #     add_header X-Content-Type-Options "nosniff" always;
+    #     add_header X-XSS-Protection "1; mode=block" always;
+    #     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    #
+    #     # -----------------------------------------------------------------
+    #     # Application Configuration (same as HTTP)
+    #     # -----------------------------------------------------------------
+    #     
+    #     # Static files
+    #     location / {
+    #         root /usr/share/nginx/html;
+    #         try_files $uri $uri/ /index.html;
+    #     }
+    #
+    #     # API proxy
+    #     location /api/ {
+    #         proxy_pass http://api;
+    #         proxy_http_version 1.1;
+    #         proxy_set_header Upgrade $http_upgrade;
+    #         proxy_set_header Connection "upgrade";
+    #         proxy_set_header Host $host;
+    #         proxy_set_header X-Real-IP $remote_addr;
+    #         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #         proxy_set_header X-Forwarded-Proto https;  # Note: 'https' here
+    #         
+    #         # Security headers for API
+    #         proxy_set_header X-Forwarded-SSL on;
+    #     }
+    # }
+
+    # =========================================================================
+    # Let's Encrypt Support (OPTIONAL)
+    # If using Let's Encrypt for automatic certificates, uncomment this
+    # =========================================================================
+    
+    # server {
+    #     listen 80;
+    #     server_name yourdomain.com;  # CHANGE THIS to your actual domain
+    #     
+    #     # Let's Encrypt challenge location
+    #     location /.well-known/acme-challenge/ {
+    #         root /var/www/certbot;
+    #     }
+    #     
+    #     # Redirect everything else to HTTPS
+    #     location / {
+    #         return 301 https://$server_name$request_uri;
+    #     }
+    # }
+}

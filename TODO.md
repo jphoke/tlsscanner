@@ -19,8 +19,8 @@ See [CHANGELOG.md](CHANGELOG.md) for complete feature history.
 
 ### Deployment & Operations
 - [ ] Production environment configuration
-- [ ] SSL/TLS certificates for portal itself
-- [ ] Nginx reverse proxy configuration
+- [x] SSL/TLS certificates for portal itself - HTTPS support implemented
+- [x] Nginx reverse proxy configuration - Complete with TLS 1.2+
 - [ ] PostgreSQL backup strategy
 
 

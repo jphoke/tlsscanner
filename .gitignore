@@ -62,6 +62,10 @@ custom-ca/*.ca
 
 # Certificates and keys
 *.key
+*.crt
+*.csr
+*.pem
+*.der
 *.p12
 *.pfx
 *.jks

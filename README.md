@@ -50,10 +50,21 @@ If you're upgrading from a previous version, please see the [Migration Guide](do
 ```bash
 git clone https://github.com/jphoke/tlsscanner
 cd tlsscanner
+
+# Generate a self-signed certificate for HTTPS
+./scripts/generate-self-signed-cert.sh
+
+# Start the services
 docker compose up -d
 ```
 
-Open http://localhost:3000 - that's it!
+**Access the portal:**
+- HTTPS (recommended): https://localhost:3443
+- HTTP (redirects to HTTPS): http://localhost:3000
+
+**Note:** For self-signed certificates, your browser will show a security warning. This is expected - click through to accept the certificate for development/internal use.
+
+For production deployments with trusted certificates, see [INSTALL.md](INSTALL.md).
 
 ## Features
 
@@ -68,6 +79,7 @@ Open http://localhost:3000 - that's it!
   - SSL v3 detection (optional deep scan)
 - 🏢 Custom CA support for internal certificates
 - 🌐 Modern web UI with real-time updates
+- 🔒 HTTPS support with TLS 1.2/1.3
 - 🔬 Powered by zcrypto for research-grade analysis
 
 ## Screenshots
@@ -96,10 +108,19 @@ Open http://localhost:3000 - that's it!
 ## Basic Usage
 
 ### Web Portal
-Navigate to http://localhost:3000 and enter any hostname:
+
+**Default Ports:**
+- **HTTPS**: https://localhost:3443 (recommended)
+- **HTTP**: http://localhost:3000 (redirects to HTTPS)
+
+Enter any hostname or IP to scan:
 - `example.com` - Standard HTTPS scan
 - `smtp.gmail.com:587` - SMTP with STARTTLS
 - `192.168.1.1` - Internal IP addresses
+
+**Certificate Setup:**
+- **Development/Testing**: Use `./scripts/generate-self-signed-cert.sh`
+- **Production**: See [INSTALL.md](INSTALL.md) for Let's Encrypt or commercial certificates
 
 ### Command Line
 ```bash

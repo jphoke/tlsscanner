@@ -183,11 +183,234 @@ volumes:
 docker compose up -d
 ```
 
-### Nginx Reverse Proxy
+### HTTPS/TLS Configuration
 
-**TBD - In Development**
+The TLS Scanner Portal includes built-in HTTPS support via nginx. By default, the portal serves:
+- HTTP on port 3000 (redirects to HTTPS)
+- HTTPS on port 3443
 
-HTTPS/TLS support for the portal itself is currently being developed. See TODO.md for the planned implementation.
+#### Quick Setup with Self-Signed Certificate
+
+For development, testing, or internal deployments:
+
+```bash
+# Generate a self-signed certificate
+./scripts/generate-self-signed-cert.sh
+
+# Restart nginx to load the certificate
+docker compose restart nginx
+
+# Access via HTTPS
+https://localhost:3443
+```
+
+**Note:** Browsers will show a security warning for self-signed certificates. This is expected and safe for internal use.
+
+#### Production Setup with Let's Encrypt
+
+For public-facing deployments with free, trusted certificates:
+
+1. **Install certbot:**
+```bash
+sudo apt-get update
+sudo apt-get install certbot
+```
+
+2. **Stop the containers temporarily:**
+```bash
+docker compose down
+```
+
+3. **Generate certificate (certbot needs port 80):**
+```bash
+sudo certbot certonly --standalone -d scanner.yourdomain.com
+```
+
+4. **Copy certificates to the project:**
+```bash
+sudo cp /etc/letsencrypt/live/scanner.yourdomain.com/fullchain.pem ssl/certs/tlsscanner.crt
+sudo cp /etc/letsencrypt/live/scanner.yourdomain.com/privkey.pem ssl/private/tlsscanner.key
+sudo chown $USER:$USER ssl/certs/tlsscanner.crt ssl/private/tlsscanner.key
+```
+
+5. **Update .env with your domain:**
+```bash
+cp .env.example .env
+# Edit .env and set:
+DOMAIN=scanner.yourdomain.com
+SWAGGER_HOST=scanner.yourdomain.com
+WEB_HOST_PORT=80
+WEB_HTTPS_PORT=443
+```
+
+6. **Start the containers:**
+```bash
+docker compose up -d
+```
+
+7. **Set up auto-renewal:**
+```bash
+sudo crontab -e
+# Add this line to renew certificates and reload nginx:
+0 0 1 * * certbot renew --quiet && cp /etc/letsencrypt/live/scanner.yourdomain.com/*.pem /opt/tlsscanner/ssl/certs/ && docker compose -f /opt/tlsscanner/docker-compose.yml restart nginx
+```
+
+#### Production Setup with Commercial Certificate
+
+For production environments requiring trusted certificates from commercial CAs:
+
+1. **Generate a Certificate Signing Request (CSR):**
+```bash
+./scripts/generate-csr.sh
+```
+
+This interactive script will:
+- Collect your organization information
+- Generate a private key (2048/4096/8192-bit RSA)
+- Create a CSR with Subject Alternative Names (SANs)
+- Save files to `ssl/tlsscanner.csr` and `ssl/private/tlsscanner.key`
+
+2. **Submit CSR to your Certificate Authority:**
+
+Popular CAs:
+- **DigiCert**: https://www.digicert.com (Industry leader, OV/EV certificates)
+- **Sectigo**: https://sectigo.com (formerly Comodo, affordable options)
+- **GlobalSign**: https://www.globalsign.com (International presence)
+- **GoDaddy**: https://www.godaddy.com/web-security/ssl-certificate
+- **Entrust**: https://www.entrust.com (Government and enterprise)
+
+Copy the CSR content:
+```bash
+cat ssl/tlsscanner.csr
+# Submit this to your CA's certificate request form
+```
+
+3. **Install the signed certificate:**
+
+Once you receive the certificate from your CA:
+```bash
+# Save the certificate
+cat your-signed-cert.crt > ssl/certs/tlsscanner.crt
+
+# IMPORTANT: Include intermediate certificates
+# Most CAs provide a bundle or chain file
+cat your-signed-cert.crt intermediate.crt > ssl/certs/tlsscanner.crt
+
+# Set proper permissions
+chmod 644 ssl/certs/tlsscanner.crt
+chmod 600 ssl/private/tlsscanner.key
+```
+
+4. **Verify certificate and key match:**
+```bash
+openssl x509 -noout -modulus -in ssl/certs/tlsscanner.crt | openssl md5
+openssl rsa -noout -modulus -in ssl/private/tlsscanner.key | openssl md5
+# The MD5 hashes MUST match
+```
+
+5. **Update .env for production ports:**
+```bash
+cp .env.example .env
+# Edit .env and set:
+DOMAIN=scanner.yourdomain.com
+SWAGGER_HOST=scanner.yourdomain.com
+WEB_HOST_PORT=80
+WEB_HTTPS_PORT=443
+```
+
+6. **Restart nginx:**
+```bash
+docker compose restart nginx
+```
+
+7. **Test the certificate:**
+```bash
+curl -v https://scanner.yourdomain.com
+openssl s_client -connect scanner.yourdomain.com:443 -servername scanner.yourdomain.com
+```
+
+#### Corporate/Internal CA
+
+For environments with internal Certificate Authorities:
+
+1. **Generate a CSR:**
+```bash
+openssl req -new -newkey rsa:4096 -nodes \
+  -keyout ssl/private/tlsscanner.key \
+  -out ssl/tlsscanner.csr \
+  -subj "/C=US/ST=State/L=City/O=YourCompany/CN=scanner.internal.com"
+```
+
+2. **Submit the CSR to your internal CA**
+
+3. **Save the signed certificate:**
+```bash
+# Save the certificate received from your CA
+cat signed-cert.crt > ssl/certs/tlsscanner.crt
+
+# If your CA provides intermediate certificates, include them:
+cat signed-cert.crt intermediate-ca.crt root-ca.crt > ssl/certs/tlsscanner.crt
+```
+
+4. **Restart nginx:**
+```bash
+docker compose restart nginx
+```
+
+#### Verify HTTPS Configuration
+
+After setting up certificates:
+
+```bash
+# Test the HTTPS endpoint
+curl -v https://localhost:3443
+
+# For self-signed certificates, use -k to skip verification:
+curl -k -v https://localhost:3443
+
+# Check certificate details
+openssl s_client -connect localhost:3443 -servername localhost
+
+# Verify certificate and key match
+openssl x509 -noout -modulus -in ssl/certs/tlsscanner.crt | openssl md5
+openssl rsa -noout -modulus -in ssl/private/tlsscanner.key | openssl md5
+# The MD5 hashes should match
+```
+
+#### HTTPS Troubleshooting
+
+**"No such file or directory" error:**
+```bash
+# Ensure certificates exist
+ls -la ssl/certs/tlsscanner.crt ssl/private/tlsscanner.key
+
+# Generate self-signed cert if missing
+./scripts/generate-self-signed-cert.sh
+```
+
+**"Certificate verify failed":**
+- For self-signed: This is expected, use `-k` flag with curl
+- For real certificates: Ensure intermediate certificates are included in tlsscanner.crt
+
+**"Permission denied":**
+```bash
+# Fix permissions
+chmod 644 ssl/certs/tlsscanner.crt
+chmod 600 ssl/private/tlsscanner.key
+```
+
+**Port already in use:**
+```bash
+# Check what's using port 443
+sudo lsof -i :443
+
+# Change the port in .env
+WEB_HTTPS_PORT=8443  # Use a different port
+```
+
+### Additional Production Hardening
+
+For maximum security in production environments:
 
 ## Custom CA Configuration
 

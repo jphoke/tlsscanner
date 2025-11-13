@@ -1,0 +1,12 @@
+# Ignore all certificate and key files
+*.crt
+*.pem
+*.key
+*.csr
+*.der
+*.p12
+*.pfx
+
+# But keep the directory structure
+!.gitignore
+!README.md

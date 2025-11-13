@@ -1560,15 +1560,18 @@ func calculateKeyExchangeScore(result *Result) int {
 	if len(result.CipherSuites) == 0 {
 		return 0
 	}
-	
+
 	best := 0
 	worst := 100
-	
+
 	for _, cipher := range result.CipherSuites {
 		score := 0
-		
-		// Score based on key exchange algorithm
-		if strings.Contains(cipher.Name, "ECDHE") {
+
+		// TLS 1.3 cipher suites don't include key exchange in the name
+		// because they all use ECDHE by default
+		if isTLS13Cipher(cipher.Name) {
+			score = 100 // TLS 1.3 always uses ECDHE
+		} else if strings.Contains(cipher.Name, "ECDHE") {
 			score = 100 // ECDHE is best
 		} else if strings.Contains(cipher.Name, "DHE") {
 			score = 90  // DHE is good
@@ -1579,7 +1582,7 @@ func calculateKeyExchangeScore(result *Result) int {
 		} else {
 			score = 50  // Unknown/other
 		}
-		
+
 		if score > best {
 			best = score
 		}
@@ -1587,8 +1590,30 @@ func calculateKeyExchangeScore(result *Result) int {
 			worst = score
 		}
 	}
-	
+
 	return (best + worst) / 2
+}
+
+// isTLS13Cipher detects TLS 1.3 cipher suites by name pattern
+// TLS 1.3 ciphers are named like: TLS_AES_128_GCM_SHA256
+// TLS 1.2 ciphers include key exchange: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+func isTLS13Cipher(cipherName string) bool {
+	// TLS 1.3 cipher suites - all use ECDHE key exchange
+	tls13Ciphers := []string{
+		"TLS_AES_128_GCM_SHA256",
+		"TLS_AES_256_GCM_SHA384",
+		"TLS_CHACHA20_POLY1305_SHA256",
+		"TLS_AES_128_CCM_SHA256",
+		"TLS_AES_128_CCM_8_SHA256",
+	}
+
+	for _, tls13 := range tls13Ciphers {
+		if strings.Contains(cipherName, tls13) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func calculateCipherStrengthScore(result *Result) int {

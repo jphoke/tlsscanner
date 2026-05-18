@@ -87,3 +87,6 @@ settings.json
 *.db
 *.sqlite
 *.sqlite3
+
+# Security audit reports (local only)
+SecAudit.md

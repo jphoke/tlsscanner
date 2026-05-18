@@ -43,10 +43,10 @@ type Server struct {
 type ScanRequest struct {
 	// Target hostname or IP address to scan (required)
 	// @example example.com or 192.168.1.1:8443
-	Target     string `json:"target" binding:"required" example:"example.com"`
+	Target     string `json:"target" binding:"required,min=1" example:"example.com"`
 	// Scan priority (1-10, higher = more priority)
 	// @example 5
-	Priority   int    `json:"priority" example:"5"`
+	Priority   int    `json:"priority" binding:"omitempty,min=1,max=10" example:"5"`
 	// Optional comments for tracking (max 100 chars)
 	// @example "Ticket #12345"
 	Comments   string `json:"comments" binding:"omitempty,max=100" example:"Quarterly security audit"`
@@ -205,7 +205,7 @@ func main() {
 	// Database connection
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:password@localhost/tlsscanner?sslmode=disable"
+		log.Fatal("DATABASE_URL environment variable must be set")
 	}
 	
 	db, err := sql.Open("postgres", dbURL)
@@ -332,7 +332,12 @@ func (s *Server) createScan(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "Invalid request format"})
 		return
 	}
-	
+
+	if req.Priority < 0 || req.Priority > 10 {
+		c.JSON(400, gin.H{"error": "priority must be between 1 and 10"})
+		return
+	}
+
 	// Validate and sanitize target
 	cleanedTarget, port, err := validateTarget(req.Target)
 	if err != nil {
@@ -409,6 +414,15 @@ func (s *Server) handleBatchScan(c *gin.Context, requests []ScanRequest) {
 	failedCount := 0
 	
 	for _, req := range requests {
+		if req.Priority < 0 || req.Priority > 10 {
+			results = append(results, gin.H{
+				"target": req.Target,
+				"error":  "priority must be between 1 and 10",
+			})
+			failedCount++
+			continue
+		}
+
 		// Validate and sanitize target
 		cleanedTarget, port, err := validateTarget(req.Target)
 		if err != nil {
@@ -505,7 +519,7 @@ func (s *Server) getScan(c *gin.Context) {
 	ctx := c.Request.Context()
 	scanID := c.Param("id")
 	
-	var result json.RawMessage
+	var result *json.RawMessage
 	var status string
 	var serviceType, connectionType sql.NullString
 	var grade, protocolGrade, certificateGrade sql.NullString
@@ -975,8 +989,8 @@ func (s *Server) getStats(c *gin.Context) {
 // @Tags health
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 503 {object} map[string]string
+// @Success 200 {object} map[string]interface{}
+// @Failure 503 {object} map[string]interface{}
 // @Router /health [get]
 func (s *Server) healthCheck(c *gin.Context) {
 	ctx := c.Request.Context()

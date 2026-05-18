@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: tlsscanner
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -33,7 +33,7 @@ services:
       args:
         SWAGGER_HOST: ${SWAGGER_HOST:-localhost:8000}
     environment:
-      DATABASE_URL: postgres://postgres:password@postgres/tlsscanner?sslmode=disable
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres/tlsscanner?sslmode=disable
       REDIS_URL: redis:6379
       PORT: 8080
       CUSTOM_CA_PATH: ${CUSTOM_CA_PATH:-/certs/custom-ca}

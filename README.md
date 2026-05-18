@@ -1,189 +1,141 @@
-# TLS Scanner Portal
-<img width="1280" height="640" alt="tlsscanner-go-speed" src="https://github.com/user-attachments/assets/a5490b65-9b14-47a3-9b8c-fd46cd55e3da" />
+# SSL/TLS Certificates
 
-Lightning-fast TLS/SSL security scanner with web UI. Get comprehensive security analysis in seconds, not minutes.
+This directory contains SSL/TLS certificates for serving the TLS Scanner Portal over HTTPS.
 
-## Background
+## Directory Structure
 
-This project began as a learning exercise to explore Claude Code's capabilities and gain hands-on experience with Go. What started as a simple goal to build a faster TLS scanner for security testing quickly evolved into something more comprehensive.
+```
+ssl/
+├── certs/          # Certificate files (.crt, .pem)
+└── private/        # Private key files (.key, .pem)
+```
 
-The traditional bash-based TLS scanners were painfully slow, often taking minutes to complete basic scans. Security teams need tools that match the pace of modern development - fast, API-driven, and deployable anywhere. This scanner delivers sub-second results while providing deeper analysis than most alternatives.
+## Certificate Options
 
-Built with modern security teams in mind, TLS Scanner Portal offers:
-- **Speed**: Faster than traditional scanners - get results in milliseconds, not minutes
-- **Depth**: Enhanced vulnerability detection using zcrypto for research-grade analysis
-- **Integration**: REST API and WebSocket support for seamless automation
-- **Deployment**: Docker-based architecture runs anywhere your infrastructure lives
+### Option 1: Self-Signed Certificate (Development/Testing)
 
-## ⚠️ Critical Security Notice
-
-**This tool uses zcrypto, a research-focused library that intentionally disables security features.**
-
-**DO NOT use this codebase for:**
-- ❌ **Actual TLS communications or connections**
-- ❌ **Building production services that handle TLS**
-- ❌ **Any purpose requiring cryptographic security**
-
-The zcrypto library has safety features removed to enable testing of broken, obsolete, and insecure TLS configurations. This makes it perfect for security scanning but completely unsuitable for secure communications.
-
-## Important: Defensive Security Only
-
-This tool is designed exclusively for:
-- ✅ Security compliance scanning
-- ✅ Internal infrastructure auditing  
-- ✅ Identifying misconfigurations before attackers do
-- ✅ Monitoring certificate health and expiration
-
-**DO NOT** use this tool for:
-- ❌ Scanning infrastructure you don't own or have permission to test
-- ❌ Exploiting discovered vulnerabilities
-- ❌ Any malicious or unauthorized purposes
-
-This is a defensive security tool - think "security team's best friend", not "scriptkiddie toyz".
-
-## Upgrading from Previous Versions
-
-If you're upgrading from a previous version, please see the [Migration Guide](docs/MIGRATION.md) for important database updates and new features.
-
-## Quick Start
+Use the provided script to generate a self-signed certificate:
 
 ```bash
-git clone https://github.com/jphoke/tlsscanner
-cd tlsscanner
-
-# Generate a self-signed certificate for HTTPS
 ./scripts/generate-self-signed-cert.sh
-
-# Start the services
-docker compose up -d
 ```
 
-**Access the portal:**
-- HTTPS (recommended): https://localhost:3443
-- HTTP (redirects to HTTPS): http://localhost:3000
+This creates:
+- `ssl/certs/tlsscanner.crt` - Self-signed certificate
+- `ssl/private/tlsscanner.key` - Private key
 
-**Note:** For self-signed certificates, your browser will show a security warning. This is expected - click through to accept the certificate for development/internal use.
+**Note:** Browsers will show a security warning for self-signed certificates. This is expected and safe for development/internal use.
 
-For production deployments with trusted certificates, see [INSTALL.md](INSTALL.md).
+### Option 2: Let's Encrypt (Production)
 
-## Features
+For public-facing deployments, use Let's Encrypt with certbot:
 
-- ⚡ Faster than bash-based scanners
-- 🏆 SSL Labs grading
-- 📧 Automatic STARTTLS for mail servers, FTP, and more
-- 🔍 Enhanced vulnerability detection with CVE tracking
-  - Export cipher detection (FREAK)
-  - NULL cipher detection
-  - ROBOT attack detection
-  - Heartbleed heuristic analysis
-  - SSL v3 detection (optional deep scan)
-- 🏢 Custom CA support for internal certificates
-- 🌐 Modern web UI with real-time updates
-- 🔒 HTTPS support with TLS 1.2/1.3
-- 🔬 Powered by zcrypto for research-grade analysis
-
-## Screenshots
-
-<div align="center">
-  <img width="1008" height="876" alt="MainPortalView" src="https://github.com/user-attachments/assets/15f27d7e-c564-4d26-8a60-0daba6ca93dc" />
-  <p><em>Main portal interface - Simple and intuitive scanning</em></p>
-</div>
-
-  <br/>
-
-<div align="center">
-  <img width="1011" height="1588" alt="expiredCertFail" src="https://github.com/user-attachments/assets/fcbbd274-3f7c-465e-9609-37e2944fb937" />
-  <p><em>Output of "expired.badssl.com" showing security issues and remediation steps</em></p>
-</div>
-
-  <br/>
-
-<div align="center">
-  <img width="988" height="1104" alt="smtpsViaSTARTTLS" src="https://github.com/user-attachments/assets/d6d3c5e8-1df2-492a-b4bf-e1bd4fb7f829" />
-  <p><em>Scan results for SMTP/S Connections using STARTTLS</em></p>
-</div>
-
-
-
-## Basic Usage
-
-### Web Portal
-
-**Default Ports:**
-- **HTTPS**: https://localhost:3443 (recommended)
-- **HTTP**: http://localhost:3000 (redirects to HTTPS)
-
-Enter any hostname or IP to scan:
-- `example.com` - Standard HTTPS scan
-- `smtp.gmail.com:587` - SMTP with STARTTLS
-- `192.168.1.1` - Internal IP addresses
-
-**Certificate Setup:**
-- **Development/Testing**: Use `./scripts/generate-self-signed-cert.sh`
-- **Production**: See [INSTALL.md](INSTALL.md) for Let's Encrypt or commercial certificates
-
-### Command Line
 ```bash
-# Basic scan
-./tlsscanner -target example.com
-./tlsscanner -target 192.168.1.1:8443
+# Install certbot
+sudo apt-get install certbot
 
-# JSON output (works with any host:port)
-./tlsscanner -target smtp.gmail.com:587 -json
+# Generate certificate (standalone mode - requires port 80 available)
+sudo certbot certonly --standalone -d scanner.yourdomain.com
 
-# With custom CA certificates (for internal/corporate CAs)
-./tlsscanner -target internal.company.com -ca-path /path/to/ca/certs
-
-# Deep scan including SSL v3 detection (slower)
-./tlsscanner -target legacy.server.com -check-sslv3
-
-# Batch scanning from CSV file
-./tlsscanner -batch test/test-targets.csv
-./tlsscanner -b test/test-targets.csv -summary  # Summary only
-./tlsscanner -batch test/test-targets.csv -json > results.json
+# Copy certificates to ssl directory
+sudo cp /etc/letsencrypt/live/scanner.yourdomain.com/fullchain.pem ssl/certs/tlsscanner.crt
+sudo cp /etc/letsencrypt/live/scanner.yourdomain.com/privkey.pem ssl/private/tlsscanner.key
+sudo chown $USER:$USER ssl/certs/tlsscanner.crt ssl/private/tlsscanner.key
 ```
 
-#### Batch File Format
-```csv
-# test/test-targets.csv - with header
-target,check_sslv3,comments
-google.com,N,Google main site
-badssl.com,N,Testing site
-expired.badssl.com,N,Expired cert test
-self-signed.badssl.com,Y,Self-signed with SSL v3 check
-smtp.gmail.com:587,N,Gmail SMTP with STARTTLS
-smtp.gmail.com:465,N,Gmail SMTP with direct TLS
-
-# Or minimal format (no header)
-example.com
-smtp.server.com:587
-192.168.1.1:8443,Y
+**Auto-renewal:** Set up a cron job to renew certificates:
+```bash
+0 0 1 * * certbot renew --quiet && cp /etc/letsencrypt/live/scanner.yourdomain.com/*.pem /opt/tlsscanner/ssl/certs/
 ```
 
-The scanner automatically detects STARTTLS for mail ports and trusts certificates signed by CAs in the specified directory.
+### Option 3: Commercial Certificate (DigiCert, Sectigo, etc.)
 
-## Next Steps
+For production environments requiring trusted certificates:
 
-- [Installation Options](INSTALL.md) - Custom ports, CLI-only, production setup
-- [API Documentation](docs/API.md) - REST API integration
-- [Vulnerability Detection](docs/VULNERABILITIES.md) - How vulnerabilities are detected
-- [Contributing](docs/CONTRIBUTING.md) - Help improve the scanner
+1. **Generate a Certificate Signing Request (CSR):**
+   ```bash
+   ./scripts/generate-csr.sh
+   ```
+   This interactive script will:
+   - Create a private key (2048, 4096, or 8192-bit RSA)
+   - Generate a CSR with your organization details
+   - Support multiple Subject Alternative Names (SANs)
+   - Provide the CSR file to submit to your CA
 
-## Acknowledgements
+2. **Submit the CSR to your Certificate Authority:**
+   - DigiCert: https://www.digicert.com
+   - Sectigo: https://sectigo.com
+   - GlobalSign: https://www.globalsign.com
+   - GoDaddy, Entrust, or any other CA
 
-This project uses the following open source libraries:
+3. **Install the signed certificate:**
+   ```bash
+   # Save the certificate from your CA
+   cat your-cert.crt > ssl/certs/tlsscanner.crt
 
-- [zcrypto](https://github.com/zmap/zcrypto) - A research-focused fork of Go's crypto libraries that enables scanning of legacy and non-compliant TLS configurations. Licensed under Apache 2.0.
-- [ZMap Project](https://zmap.io/) - The team behind zcrypto and other excellent security research tools.
+   # If you have intermediate certificates, concatenate them:
+   cat your-cert.crt intermediate.crt root.crt > ssl/certs/tlsscanner.crt
+   ```
 
+4. **Verify the certificate matches the private key:**
+   ```bash
+   openssl x509 -noout -modulus -in ssl/certs/tlsscanner.crt | openssl md5
+   openssl rsa -noout -modulus -in ssl/private/tlsscanner.key | openssl md5
+   # The MD5 hashes should match
+   ```
 
-Special thanks to the security research community for their work in identifying and documenting TLS vulnerabilities.
+### Option 4: Internal CA
 
-## Other Thanks 
-- [Anthropic](https://github.com/anthropics) - Seriously though - [Claude Code](https://github.com/anthropics/claude-code) is a game changer 
+For corporate/internal environments with their own CA:
 
-## License
+1. Generate a certificate signing request (CSR):
+   ```bash
+   openssl req -new -newkey rsa:4096 -nodes \
+     -keyout ssl/private/tlsscanner.key \
+     -out ssl/tlsscanner.csr \
+     -subj "/C=US/ST=State/L=City/O=Organization/CN=scanner.company.com"
+   ```
 
-MIT License - see [LICENSE](LICENSE) file for details.
+2. Submit the CSR to your internal CA
 
-This project includes third-party libraries. See [THIRD-PARTY-LICENSES](THIRD-PARTY-LICENSES) for details.
+3. Save the signed certificate to `ssl/certs/tlsscanner.crt`
+
+## File Permissions
+
+Ensure correct permissions for security:
+
+```bash
+chmod 644 ssl/certs/*.crt
+chmod 600 ssl/private/*.key
+```
+
+## Verification
+
+After setting up certificates, verify them:
+
+```bash
+# Check certificate details
+openssl x509 -in ssl/certs/tlsscanner.crt -text -noout
+
+# Verify certificate matches private key
+openssl x509 -noout -modulus -in ssl/certs/tlsscanner.crt | openssl md5
+openssl rsa -noout -modulus -in ssl/private/tlsscanner.key | openssl md5
+# The MD5 hashes should match
+
+# Test the server
+curl -v https://localhost:443
+```
+
+## Troubleshooting
+
+**"No such file or directory" error:**
+- Make sure certificate files exist with the correct names
+- Check file permissions (nginx needs read access)
+
+**"Certificate verify failed":**
+- For self-signed: Expected, use `-k` flag: `curl -k https://localhost`
+- For real certs: Check that intermediate certificates are included
+
+**"Permission denied":**
+- Fix permissions: `chmod 644 ssl/certs/*.crt && chmod 600 ssl/private/*.key`
+- Ensure Docker has read access to the ssl directory

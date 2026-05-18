@@ -1,92 +1,20 @@
-# Binaries
-/scanner
-/api
-*.exe
-*.dll
-*.so
-*.dylib
-/tlsscanner
-
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool
-*.out
-
-# Go workspace file
-go.work
-
-# Dependency directories
-vendor/
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Environment files
-.env
-.env.local
-
-# Build directories
-dist/
-build/
-
-# Docker volumes
-postgres_data/
-
-# Logs
-*.log
-
-# Screenshots
-*.png
-Screenshot*
-
-CLAUDE.md
-
-.claude/
-# Custom CA certificates (user-specific)
-custom-ca/*.crt
-custom-ca/*.pem
-custom-ca/*.cer
-custom-ca/*.ca
-# But keep the README
-!custom-ca/README.md
-
-
-# Certificates and keys
-*.key
+# Ignore all certificate and key files
 *.crt
-*.csr
 *.pem
+*.key
+*.csr
 *.der
 *.p12
 *.pfx
-*.jks
-*.keystore
+*.cer
 
-# Config files that might contain secrets
-config.json
-config.yaml
-config.yml
-settings.json
+# Environment files
+.env
 
-# Backup files that might contain sensitive data
-*.bak
-*.backup
-*.old
-*.orig
+# Compiled binaries
+/tlsscanner
+/api
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Security audit reports (local only)
-SecAudit.md
+# But keep the directory structure
+!.gitignore
+!README.md
